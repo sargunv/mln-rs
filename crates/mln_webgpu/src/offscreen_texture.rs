@@ -4,12 +4,16 @@
 // with `Device::poll(PollType::Wait)` (C++: `wgpuInstanceWaitAny` on Dawn, a
 // 1000 x 1 ms `wgpuDevicePoll` loop on wgpu-native).
 //
+// Port-only: the staging buffer is kept between reads, and after a read the
+// next frame's own submission ends with the copy, which C++ submits
+// separately on each read.
+//
 // TODO(port): the size-changed callback (`handleResize` / `setSizeListener`)
 // that resizes the textures when someone calls `setSize` on the color
 // texture; nothing on the M1 path resizes them.
 
 use std::any::Any;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use mln_gfx::offscreen_texture;
@@ -40,13 +44,29 @@ pub struct OffscreenTextureResource {
     type_: TextureChannelDataType,
     color_texture: RefCell<Option<Rc<RefCell<Texture2D>>>>,
     depth_texture: Option<Rc<RefCell<Texture2D>>>,
+    /// The buffer the color texture is copied into to be read back, kept
+    /// for the next read.
+    staging_buffer: RefCell<Option<wgpu::Buffer>>,
+    /// The color texture was read back: the next frame copies it out.
+    read_back: Cell<bool>,
+    /// The submission (`Context::submissions`) whose copy the readback
+    /// buffer holds.
+    copied_at: Cell<Option<u64>>,
 }
 
 impl OffscreenTextureResource {
     pub fn new(context: Rc<Context>, size: Size, type_: TextureChannelDataType, depth: bool, stencil: bool) -> Self {
         debug_assert!(size.width != 0 && size.height != 0);
-        let mut res =
-            OffscreenTextureResource { context, size, type_, color_texture: RefCell::new(None), depth_texture: None };
+        let mut res = OffscreenTextureResource {
+            context,
+            size,
+            type_,
+            color_texture: RefCell::new(None),
+            depth_texture: None,
+            staging_buffer: RefCell::default(),
+            read_back: Cell::default(),
+            copied_at: Cell::default(),
+        };
         // Create color texture
         *res.color_texture.borrow_mut() = Some(res.create_color_texture());
 
@@ -94,14 +114,68 @@ impl OffscreenTextureResource {
         self.color_texture.borrow().clone()
     }
 
-    pub fn read_still_image(&self) -> PremultipliedImage {
-        // Read back the color texture data
-        let bytes_per_pixel = 4u32; // RGBA8 output
+    fn row_strides(&self) -> (u32, u32) {
+        let row_stride = self.size.width * 4; // RGBA8 output
+        (row_stride, row_stride.next_multiple_of(BYTES_PER_ROW_ALIGNMENT))
+    }
+
+    /// Records a copy of the color texture into the readback buffer, if
+    /// the texture exists.
+    fn encode_copy(&self, device: &wgpu::Device, encoder: &mut wgpu::CommandEncoder) -> bool {
+        let color = self.color();
+        let Some(texture) = color.as_ref().and_then(|c| c.borrow().get_texture().cloned()) else {
+            return false;
+        };
         let size = self.size;
-        let row_stride = size.width * bytes_per_pixel;
-        let aligned_row_stride = row_stride.div_ceil(BYTES_PER_ROW_ALIGNMENT) * BYTES_PER_ROW_ALIGNMENT;
-        let aligned_data_size = u64::from(aligned_row_stride) * u64::from(size.height);
+        let (_, aligned_row_stride) = self.row_strides();
+        let mut staging = self.staging_buffer.borrow_mut();
+        let staging = staging.get_or_insert_with(|| {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Readback Buffer"),
+                size: u64::from(aligned_row_stride) * u64::from(size.height),
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            })
+        });
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: staging,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(aligned_row_stride),
+                    rows_per_image: Some(size.height),
+                },
+            },
+            wgpu::Extent3d { width: size.width, height: size.height, depth_or_array_layers: 1 },
+        );
+        true
+    }
+
+    /// Ends a frame with the copy a read asked for: a host reading frames
+    /// back reads the next one too, and the copy then costs no submission
+    /// of its own.
+    pub(crate) fn encode_requested_copy(&self, encoder: &mut wgpu::CommandEncoder) {
+        let Some(device) = self.context.get_backend().get_device() else {
+            return;
+        };
+        if self.read_back.replace(false) && self.encode_copy(&device, encoder) {
+            self.copied_at.set(Some(self.context.submissions()));
+        }
+    }
+
+    /// The color texture's pixels. The copy is the one the last submission
+    /// made (`encode_requested_copy`), or else one submitted now.
+    pub fn read_still_image(&self) -> PremultipliedImage {
+        let size = self.size;
+        let (row_stride, aligned_row_stride) = self.row_strides();
         let mut data = vec![0u8; row_stride as usize * size.height as usize];
+        self.read_back.set(true);
 
         let backend = self.context.get_backend();
         let (Some(device), Some(queue)) = (backend.get_device(), backend.get_queue()) else {
@@ -109,40 +183,19 @@ impl OffscreenTextureResource {
             return PremultipliedImage::from_vec(size, data);
         };
 
-        // Create staging buffer for readback
-        let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Readback Buffer"),
-            size: aligned_data_size,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-
-        // Copy texture to buffer
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        let color = self.color();
-        let texture = color.as_ref().and_then(|c| c.borrow().get_texture().cloned());
-        if let Some(texture) = texture {
-            encoder.copy_texture_to_buffer(
-                wgpu::TexelCopyTextureInfo {
-                    texture: &texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                wgpu::TexelCopyBufferInfo {
-                    buffer: &staging_buffer,
-                    layout: wgpu::TexelCopyBufferLayout {
-                        offset: 0,
-                        bytes_per_row: Some(aligned_row_stride),
-                        rows_per_image: Some(size.height),
-                    },
-                },
-                wgpu::Extent3d { width: size.width, height: size.height, depth_or_array_layers: 1 },
-            );
+        // Any later submission may have drawn the texture again.
+        if self.copied_at.take() != Some(self.context.submissions()) {
+            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+            if !self.encode_copy(&device, &mut encoder) {
+                eprintln!("WebGPU: Color texture is null");
+                return PremultipliedImage::from_vec(size, data);
+            }
             queue.submit([encoder.finish()]);
-        } else {
-            eprintln!("WebGPU: Color texture is null");
         }
+        let staging = self.staging_buffer.borrow();
+        let Some(staging_buffer) = staging.as_ref() else {
+            return PremultipliedImage::from_vec(size, data);
+        };
 
         // Map buffer and read data (blocking)
         let (tx, rx) = std::sync::mpsc::channel();
@@ -181,6 +234,7 @@ impl OffscreenTextureResource {
 
     pub fn take_texture(&self) -> Option<Texture2DPtr> {
         let taken: Texture2DPtr = self.color_texture.borrow_mut().take()?;
+        self.copied_at.set(None);
         *self.color_texture.borrow_mut() = Some(self.create_color_texture());
         Some(taken)
     }
@@ -205,6 +259,10 @@ impl RenderableResource for OffscreenTextureResource {
 
     fn swap(&self) {
         // Offscreen targets do not present to a surface.
+    }
+
+    fn finish_frame(&self, encoder: &mut wgpu::CommandEncoder) {
+        self.encode_requested_copy(encoder);
     }
 
     fn get_color_texture_view(&self) -> Option<wgpu::TextureView> {

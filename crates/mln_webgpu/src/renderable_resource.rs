@@ -21,6 +21,10 @@ pub trait RenderableResource {
     /// explicitly can override this method.
     fn swap(&self) {}
 
+    /// Records commands at the end of the frame `present` is about to
+    /// submit, after its passes, into the same submission.
+    fn finish_frame(&self, _encoder: &mut wgpu::CommandEncoder) {}
+
     /// The color attachment view for render passes targeting this resource,
     /// or `None` if the backend supplies it (swapchain).
     fn get_color_texture_view(&self) -> Option<wgpu::TextureView> {

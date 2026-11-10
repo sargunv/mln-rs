@@ -69,6 +69,8 @@ pub struct Context {
     // UploadPass::build_attribute_bindings, one per attribute type, with the
     // vertex count each covers.
     dummy_vertex_buffers: RefCell<HashMap<AttributeDataType, (usize, UniqueVertexBufferResource)>>,
+    /// Command buffers the command encoders have submitted.
+    submissions: Cell<u64>,
 }
 
 /// `clipMaskStencilMode`
@@ -103,7 +105,18 @@ impl Context {
             clip_mask_renderable: Cell::new(None),
             clip_mask_pipeline_hash: Cell::new(None),
             clip_mask_uniform_buffers: RefCell::new(Vec::new()),
+            submissions: Cell::new(0),
         })
+    }
+
+    /// How many command buffers the command encoders have submitted,
+    /// counting one as it is being submitted.
+    pub(crate) fn submissions(&self) -> u64 {
+        self.submissions.get()
+    }
+
+    pub(crate) fn count_submission(&self) {
+        self.submissions.set(self.submissions.get() + 1);
     }
 
     /// The owning `Rc` (resources keep the context alive, as the C++

@@ -58,6 +58,9 @@ impl RenderableResource for HeadlessRenderableResource {
     fn swap(&self) {
         // For headless rendering, we don't need to swap
     }
+    fn finish_frame(&self, encoder: &mut wgpu::CommandEncoder) {
+        self.offscreen_texture.encode_requested_copy(encoder);
+    }
     fn get_color_texture_view(&self) -> Option<wgpu::TextureView> {
         self.offscreen_texture.get_color_texture_view()
     }

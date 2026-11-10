@@ -19,7 +19,7 @@ use mln_gfx::renderable::Renderable;
 
 use crate::context::Context;
 use crate::render_pass::RenderPass;
-use crate::renderable_resource::as_webgpu;
+use crate::renderable_resource::{RenderableResource, as_webgpu};
 use crate::upload_pass::UploadPass;
 
 pub struct CommandEncoder {
@@ -57,13 +57,23 @@ impl CommandEncoder {
     /// WebGPU-specific: submit the command buffer directly, then start a new
     /// encoder so subsequent passes in the same frame can continue recording.
     pub fn submit_command_buffer(&self) {
+        self.submit(None);
+    }
+
+    /// Submits the command buffer, ending it with what `resource` records
+    /// in `finish_frame`.
+    fn submit(&self, resource: Option<&dyn RenderableResource>) {
         let backend = self.context.get_backend();
         let (Some(_device), Some(queue)) = (backend.get_device(), backend.get_queue()) else {
             return;
         };
-        let Some(encoder) = self.encoder.borrow_mut().take() else {
+        let Some(mut encoder) = self.encoder.borrow_mut().take() else {
             return;
         };
+        self.context.count_submission();
+        if let Some(resource) = resource {
+            resource.finish_frame(&mut encoder);
+        }
         // Finish and submit the command buffer
         let command_buffer = encoder.finish();
         queue.submit([command_buffer]);
@@ -97,13 +107,13 @@ impl command_encoder::CommandEncoder for CommandEncoder {
     }
 
     fn present(&self, renderable: &dyn Renderable) {
-        // Submit the command buffer first
-        self.submit_command_buffer();
-        // Then call swap on the RenderableResource to present the surface.
-        // (C++ catches the exception thrown when there is no resource.)
-        if let Some(resource) = renderable.get_resource()
-            && let Some(resource) = as_webgpu(&*resource)
-        {
+        // Submit the command buffer first, then call swap on the
+        // RenderableResource to present the surface. (C++ catches the
+        // exception thrown when there is no resource.)
+        let resource = renderable.get_resource();
+        let resource = resource.as_deref().and_then(as_webgpu);
+        self.submit(resource);
+        if let Some(resource) = resource {
             resource.swap();
         }
     }
