@@ -120,6 +120,10 @@ impl Expression for Literal {
         Ok(self.value.clone())
     }
 
+    fn literal_value(&self) -> Option<&Value> {
+        Some(&self.value)
+    }
+
     fn each_child<'a>(&'a self, _: &mut dyn FnMut(&'a dyn Expression)) {}
 
     fn equals(&self, e: &dyn Expression) -> bool {

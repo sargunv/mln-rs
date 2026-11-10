@@ -6,7 +6,7 @@ use mln_conversion::Convertible;
 use crate::assertion::Assertion;
 use crate::collator::Collator;
 use crate::expression::{
-    EvaluationContext, EvaluationError, EvaluationResult, Expression, ExpressionBase, Kind, downcast,
+    EvaluationContext, EvaluationError, EvaluationResult, Expression, ExpressionBase, Kind, downcast, evaluate_ref,
 };
 use crate::parsing_context::{ParseResult, ParsingContext};
 use crate::type_::{self, Type};
@@ -134,8 +134,8 @@ impl Expression for BasicComparison {
     }
 
     fn evaluate(&self, params: &EvaluationContext<'_>) -> EvaluationResult {
-        let lhs_result = self.lhs.evaluate(params)?;
-        let rhs_result = self.rhs.evaluate(params)?;
+        let lhs_result = evaluate_ref(&*self.lhs, params)?;
+        let rhs_result = evaluate_ref(&*self.rhs, params)?;
 
         if self.needs_runtime_type_check {
             let lhs_type = type_of(&lhs_result);

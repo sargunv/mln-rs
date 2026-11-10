@@ -7,6 +7,7 @@
 // `getKind()` + `static_cast`; the port uses `downcast` (`Any`).
 
 use std::any::Any;
+use std::borrow::Cow;
 use std::fmt;
 
 use feature::{Feature, Identifier as FeatureIdentifier, Value as MbglValue, ValueObject};
@@ -296,6 +297,14 @@ pub trait Expression: AsAny + Send + Sync {
     fn base(&self) -> &ExpressionBase;
 
     fn evaluate(&self, params: &EvaluationContext<'_>) -> EvaluationResult;
+
+    /// The value a literal always evaluates to, which callers can borrow
+    /// instead of cloning it on each evaluation. `None` for any other
+    /// expression.
+    fn literal_value(&self) -> Option<&Value> {
+        None
+    }
+
     fn each_child<'a>(&'a self, visit: &mut dyn FnMut(&'a dyn Expression));
 
     /// `operator==`.
@@ -525,6 +534,17 @@ pub fn evaluate_accumulated(
 ) -> EvaluationResult {
     let f = GeoJSONFeature::new(feature);
     e.evaluate(&EvaluationContext::from_accumulated(accumulated, Some(&f)))
+}
+
+/// `evaluate`, borrowing a literal's value instead of cloning it.
+pub(crate) fn evaluate_ref<'a>(
+    expression: &'a dyn Expression,
+    params: &EvaluationContext<'_>,
+) -> Result<Cow<'a, Value>, EvaluationError> {
+    match expression.literal_value() {
+        Some(value) => Ok(Cow::Borrowed(value)),
+        None => expression.evaluate(params).map(Cow::Owned),
+    }
 }
 
 /// `toExpressionValue(mln::Value)`, used by the feature accessors.
