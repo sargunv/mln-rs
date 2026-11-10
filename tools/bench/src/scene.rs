@@ -190,6 +190,15 @@ impl Scene {
         self.frontend.read_still_image()
     }
 
+    /// A complete still frame through `HeadlessFrontend::render`, as the
+    /// render tests draw one.
+    pub fn render(&mut self) -> PremultipliedImage {
+        match self.frontend.render(&mut self.map) {
+            Ok(result) => result.image,
+            Err(error) => panic!("still: {error}"),
+        }
+    }
+
     /// Delivers what the map's workers have finished, without waiting.
     pub fn pump(&self) {
         RunLoop::get().run_once();

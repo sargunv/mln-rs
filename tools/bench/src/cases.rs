@@ -2,10 +2,12 @@
 //! follow maplibre-native-ffi's of the same names, over the same data and
 //! cameras, so their numbers are comparable to the C++ core's.
 
+use std::sync::Barrier;
 use std::time::{Duration, Instant};
 
 use mln_map::RenderMode;
 use mln_util::geo::LatLng;
+use mln_util::image::PremultipliedImage;
 use mln_util::size::Size;
 
 use crate::meter::{Meter, ms};
@@ -95,6 +97,7 @@ pub fn all() -> Vec<Case> {
         let name = format!("Load/Style/{}", view.name);
         cases.push(Case::new(name, move |cx| load_style(cx, &view)));
     }
+    cases.push(Case::new("Load/Concurrent", load_concurrent));
     cases.push(Case::new("Load/JumpWarm", |cx| load_jump(cx, false)));
     cases.push(Case::new("Load/JumpCold", |cx| load_jump(cx, true)));
     cases
@@ -143,6 +146,47 @@ fn load_style(cx: &Context, view: &View) -> Metrics {
     }
     if let (Some(dir), Some(image)) = (&cx.frames, &last) {
         write_frame(dir, &format!("Load/Style/{}", view.name), image);
+    }
+    meter.finish()
+}
+
+/// Renderers on threads of their own, as the render tests run many at
+/// once: each loads a real-world style on a new map and renders its first
+/// complete still through `HeadlessFrontend::render`, the threads taking
+/// the styles in turn. An iteration is every renderer's load
+/// and still; the GPU devices are set up before.
+fn load_concurrent(cx: &Context) -> Metrics {
+    const RENDERERS: usize = 16;
+    let mut meter = Meter::new();
+    let mut last = None;
+    for _ in 0..cx.iterations(5) {
+        let ready = Barrier::new(RENDERERS + 1);
+        let images: Vec<PremultipliedImage> = std::thread::scope(|scope| {
+            let threads: Vec<_> = REAL_WORLD
+                .iter()
+                .cycle()
+                .take(RENDERERS)
+                .map(|view| {
+                    let ready = &ready;
+                    scope.spawn(move || {
+                        let mut scene = Scene::new(REAL_WORLD_SIZE, Mode::Still);
+                        scene.jump(view.center(), view.zoom);
+                        ready.wait();
+                        scene.load_url(&view.style_url());
+                        scene.render()
+                    })
+                })
+                .collect();
+            ready.wait();
+            meter.start();
+            let images = threads.into_iter().map(|thread| thread.join().expect("a renderer")).collect();
+            meter.stop();
+            images
+        });
+        last = images.into_iter().next();
+    }
+    if let (Some(dir), Some(image)) = (&cx.frames, &last) {
+        write_frame(dir, "Load/Concurrent", image);
     }
     meter.finish()
 }
