@@ -154,7 +154,6 @@ impl Context {
     /// makes one (usage | CopyDst, initial queue write).
     fn create_raw_buffer(&self, data: &[u8], usage: wgpu::BufferUsages) -> Option<(wgpu::Buffer, u64)> {
         let device = self.backend.get_device()?;
-        let queue = self.backend.get_queue()?;
         let padded_size = (data.len() + 3) & !3usize;
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Buffer Resource"),
@@ -164,7 +163,7 @@ impl Context {
         });
         let mut padded = data.to_vec();
         padded.resize(padded_size, 0);
-        queue.write_buffer(&buffer, 0, &padded);
+        self.backend.write_buffer(&buffer, 0, &padded);
         Some((buffer, data.len() as u64))
     }
 

@@ -24,6 +24,7 @@ use mln_gfx::shaders::shader_source::BuiltIn;
 use crate::context::Context;
 use crate::shaders::shader_group::ShaderGroup;
 use crate::shaders::shader_source::shader_source;
+use crate::writes::Writes;
 
 /// `RendererBackend::Impl`
 #[derive(Default)]
@@ -35,6 +36,7 @@ pub struct BackendImpl {
     /// `wgpu::TextureFormat::Undefined` is `None`.
     depth_stencil_format: Cell<Option<wgpu::TextureFormat>>,
     color_format: Cell<Option<wgpu::TextureFormat>>,
+    writes: RefCell<Writes>,
 }
 
 impl BackendImpl {
@@ -46,6 +48,7 @@ impl BackendImpl {
     }
     pub fn set_device(&self, device: Option<wgpu::Device>) {
         *self.device.borrow_mut() = device;
+        *self.writes.borrow_mut() = Writes::default();
     }
     pub fn set_queue(&self, queue: Option<wgpu::Queue>) {
         *self.queue.borrow_mut() = queue;
@@ -73,6 +76,25 @@ impl BackendImpl {
     }
     pub fn get_color_format(&self) -> Option<wgpu::TextureFormat> {
         self.color_format.get()
+    }
+
+    /// Port-only: writes `data` at `offset` in `buffer` ahead of the next
+    /// [`submit`](Self::submit)'s commands, as `Queue::write_buffer` does,
+    /// but small writes are gathered and copied into place together.
+    pub(crate) fn write_buffer(&self, buffer: &wgpu::Buffer, offset: u64, data: &[u8]) {
+        if let Some(queue) = self.queue.borrow().as_ref() {
+            self.writes.borrow_mut().write(queue, buffer, offset, data);
+        }
+    }
+
+    /// Port-only: submits `command_buffer` after the copies of the writes
+    /// gathered by [`write_buffer`](Self::write_buffer).
+    pub(crate) fn submit(&self, command_buffer: wgpu::CommandBuffer) {
+        let (Some(device), Some(queue)) = (self.device.borrow().clone(), self.queue.borrow().clone()) else {
+            return;
+        };
+        let writes = self.writes.borrow_mut().encode(&device, &queue);
+        queue.submit(writes.into_iter().chain([command_buffer]));
     }
 }
 

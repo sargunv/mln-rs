@@ -57,18 +57,15 @@ impl BufferResource {
             mapped_at_creation: false,
         });
         if let Some(data) = data {
-            // Upload initial data via queue write
-            if let Some(queue) = backend.get_queue() {
-                if padded_size == size {
-                    queue.write_buffer(&buffer, 0, &data[..size]);
-                } else {
-                    let mut padded = vec![0u8; padded_size];
-                    padded[..size].copy_from_slice(&data[..size]);
-                    queue.write_buffer(&buffer, 0, &padded);
-                }
+            // Upload initial data via queue write. C++ falls back to mapping
+            // when there is no queue; a device always has one here.
+            if padded_size == size {
+                backend.write_buffer(&buffer, 0, &data[..size]);
+            } else {
+                let mut padded = vec![0u8; padded_size];
+                padded[..size].copy_from_slice(&data[..size]);
+                backend.write_buffer(&buffer, 0, &padded);
             }
-            // C++ falls back to mapping when there is no queue; a device
-            // always has one here.
         }
         res.buffer = Some(buffer);
         res
@@ -96,11 +93,8 @@ impl BufferResource {
             self.raw[offset..offset + update_size].copy_from_slice(data);
         }
         // Update GPU buffer if we have one
-        if let Some(buffer) = &self.buffer
-            && let Some(queue) = self.context.get_backend().get_queue()
-        {
-            // Write data to buffer using queue
-            queue.write_buffer(buffer, offset as u64, data);
+        if let Some(buffer) = &self.buffer {
+            self.context.get_backend().write_buffer(buffer, offset as u64, data);
         }
         // Increment version to indicate change
         self.version = self.version.wrapping_add(1);

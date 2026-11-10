@@ -59,12 +59,10 @@ impl UniformBuffer {
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
-            if let Some(data) = data
-                && let Some(queue) = backend.get_queue()
-            {
+            if let Some(data) = data {
                 let mut padded = vec![0u8; aligned_size];
                 padded[..size].copy_from_slice(&data[..size]);
-                queue.write_buffer(&b, 0, &padded);
+                backend.write_buffer(&b, 0, &padded);
             }
             buffer = Some(b);
         }
@@ -88,9 +86,8 @@ impl uniform_buffer::UniformBuffer for UniformBuffer {
         debug_assert!(data.len() <= aligned_uniform_size(self.size), "update larger than the uniform buffer");
         if !data.is_empty()
             && let Some(buffer) = &self.buffer
-            && let Some(queue) = self.backend.get_queue()
         {
-            queue.write_buffer(buffer, 0, data);
+            self.backend.write_buffer(buffer, 0, data);
         }
     }
 

@@ -58,15 +58,14 @@ impl CommandEncoder {
     /// encoder so subsequent passes in the same frame can continue recording.
     pub fn submit_command_buffer(&self) {
         let backend = self.context.get_backend();
-        let (Some(_device), Some(queue)) = (backend.get_device(), backend.get_queue()) else {
+        if backend.get_device().is_none() || backend.get_queue().is_none() {
             return;
-        };
+        }
         let Some(encoder) = self.encoder.borrow_mut().take() else {
             return;
         };
-        // Finish and submit the command buffer
-        let command_buffer = encoder.finish();
-        queue.submit([command_buffer]);
+        // Finish and submit the command buffer, after the buffer writes
+        backend.submit(encoder.finish());
         // Create a new command encoder (C++ also updates
         // context.setCurrentCommandEncoder).
         *self.encoder.borrow_mut() = new_encoder(&self.context);
