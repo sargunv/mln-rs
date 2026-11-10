@@ -237,11 +237,13 @@ impl RunLoop {
         *self.inner.core.waker.lock_unpoisoned() = waker;
     }
 
-    /// `uv_run(loop, UV_RUN_NOWAIT)`.
-    pub fn run_once(&self) {
-        self.run_timers();
+    /// `uv_run(loop, UV_RUN_NOWAIT)`. Returns whether a timer, task or
+    /// async handle ran.
+    pub fn run_once(&self) -> bool {
+        let mut did_work = self.run_timers();
         if self.inner.core.queue_pending.swap(false, Ordering::SeqCst) {
             self.inner.core.process();
+            did_work = true;
         }
         // Snapshot: callbacks may create or drop async handles.
         let handles: Vec<Rc<AsyncHandle>> = {
@@ -252,8 +254,10 @@ impl RunLoop {
         for handle in handles {
             if !handle.closed.get() && handle.pending.swap(false, Ordering::SeqCst) {
                 (handle.task.borrow_mut())();
+                did_work = true;
             }
         }
+        did_work
     }
 
     /// `run()`: `uv_run(loop, UV_RUN_DEFAULT)` until `stop()`. It blocks, so
@@ -267,16 +271,25 @@ impl RunLoop {
             if core.stopped.load(Ordering::SeqCst) {
                 return;
             }
-            match self.next_timer_due() {
-                Some(deadline) => core.wait_until(deadline),
-                None => core.wait(),
-            }
+            self.wait_for_work();
+        }
+    }
+
+    /// Sleeps until this loop gets a task or an async handle send, or its
+    /// next timer is due. It can return early, when a wake-up came while
+    /// the loop was running.
+    pub fn wait_for_work(&self) {
+        let core = &self.inner.core;
+        match self.next_timer_due() {
+            Some(deadline) => core.wait_until(deadline),
+            None => core.wait(),
         }
     }
 
     /// `uv__run_timers`: runs the timers that are due, earliest first (ties
     /// in start order). A callback may stop, restart or drop any timer.
-    fn run_timers(&self) {
+    /// Returns whether any was due.
+    fn run_timers(&self) -> bool {
         let now = mln_util::time::Instant::now();
         let mut due: Vec<Rc<TimerHandle>> = {
             let mut timers = self.inner.timers.borrow_mut();
@@ -284,12 +297,14 @@ impl RunLoop {
             timers.iter().filter_map(Weak::upgrade).filter(|t| t.due.get().is_some_and(|d| d <= now)).collect()
         };
         due.sort_by_key(|t| (t.due.get(), t.start_id.get()));
+        let any_due = !due.is_empty();
         for timer in due {
             // An earlier callback may have stopped or restarted it.
             if timer.due.get().is_some_and(|d| d <= now) {
                 timer.fire(now);
             }
         }
+        any_due
     }
 
     /// The earliest due time of this loop's running timers.

@@ -202,6 +202,12 @@ impl HeadlessFrontend {
             });
         }));
 
+        // C++ spins on runOnce, which costs a core per renderer while the
+        // workers parse tiles. Sleeping as soon as the loop is idle delays
+        // the short waits of a single renderer; spinning briefly keeps them.
+        const SPIN: std::time::Duration = std::time::Duration::from_millis(2);
+        let run_loop = RunLoop::get();
+        let mut idle_since = mln_util::time::Instant::now();
         let mut image = PremultipliedImage::new(Size::default());
         loop {
             // C++ reads the image inside the callback, which runs at the end
@@ -214,7 +220,11 @@ impl HeadlessFrontend {
             if image.valid() {
                 break;
             }
-            RunLoop::get().run_once();
+            if run_loop.run_once() {
+                idle_since = mln_util::time::Instant::now();
+            } else if idle_since.elapsed() >= SPIN {
+                run_loop.wait_for_work();
+            }
         }
 
         Ok(RenderResult { image })
