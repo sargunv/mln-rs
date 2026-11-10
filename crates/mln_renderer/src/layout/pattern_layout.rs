@@ -87,6 +87,8 @@ pub trait PatternLayoutSpec: 'static {
         zoom: f32,
         canonical: &CanonicalTileID,
     ) -> f32;
+    /// The sort key when it is the same for every feature.
+    fn constant_sort_key(layout: &Self::Layout) -> Option<f32>;
     /// `std::make_shared<BucketType>(layout, layerPropertiesMap, zoom, overscaling)`.
     fn create_bucket(
         layout: &Self::Layout,
@@ -160,6 +162,7 @@ impl<S: PatternLayoutSpec> PatternLayout<S> {
             layer_properties_map.entry(layer_id).or_insert_with(|| layer_properties.clone());
         }
 
+        let constant_sort_key = if sorted { S::constant_sort_key(&layout) } else { None };
         let mut features: Vec<PatternFeature> = Vec::new();
         let feature_count = source_layer.feature_count();
         for i in 0..feature_count {
@@ -222,7 +225,9 @@ impl<S: PatternLayoutSpec> PatternLayout<S> {
 
             feature.check()?;
 
-            if sorted {
+            if let Some(sort_key) = constant_sort_key {
+                features.push(PatternFeature { i, sort_key, patterns: pattern_dependency_map });
+            } else if sorted {
                 // PatternFeatureInserter<SortKeyPropertyType>::insert
                 let sort_key = S::sort_key(&layout, &*feature, zoom, &parameters.tile_id.canonical);
                 feature.check()?;
@@ -234,6 +239,11 @@ impl<S: PatternLayoutSpec> PatternLayout<S> {
                 // PatternFeatureInserter<void>::insert
                 features.push(PatternFeature { i, sort_key: 0.0, patterns: pattern_dependency_map });
             }
+        }
+        if constant_sort_key.is_some() {
+            // Inserting at the lower bound puts each feature before the
+            // earlier ones with an equal key: keep that order without a sort.
+            features.reverse();
         }
 
         Ok(PatternLayout {
@@ -364,6 +374,9 @@ impl PatternLayoutSpec for FillLayoutSpec {
     ) -> f32 {
         layout.get::<FillSortKey>().evaluate_feature_canonical(feature, zoom, canonical, FillSortKey::default_value())
     }
+    fn constant_sort_key(layout: &Self::Layout) -> Option<f32> {
+        layout.get::<FillSortKey>().constant()
+    }
     fn create_bucket(
         layout: &Self::Layout,
         layer_properties_map: &VecMap<String, Immutable<dyn LayerProperties>>,
@@ -402,6 +415,9 @@ impl PatternLayoutSpec for LineLayoutSpec {
         canonical: &CanonicalTileID,
     ) -> f32 {
         layout.get::<LineSortKey>().evaluate_feature_canonical(feature, zoom, canonical, LineSortKey::default_value())
+    }
+    fn constant_sort_key(layout: &Self::Layout) -> Option<f32> {
+        layout.get::<LineSortKey>().constant()
     }
     fn create_bucket(
         layout: &Self::Layout,

@@ -75,6 +75,8 @@ impl CircleLayout {
         let mut evaluation_parameters = PropertyEvaluationParameters::new(zoom);
         evaluation_parameters.global_state = parameters.global_state.clone();
         let layout = unevaluated_layout.evaluate(&evaluation_parameters);
+        let sort_key_property = layout.get::<CircleSortKey>();
+        let constant_sort_key = if sort_features_by_key { sort_key_property.constant() } else { None };
         let source_layer_id = leader_impl.source_layer.clone();
         let bucket_leader_id = leader_impl.id.clone();
 
@@ -103,13 +105,22 @@ impl CircleLayout {
                 continue;
             }
 
-            let sort_key_property = layout.get::<CircleSortKey>();
+            if let Some(sort_key) = constant_sort_key {
+                features.push(CircleFeature { i, sort_key });
+                continue;
+            }
+
             let sort_key = sort_key_property.evaluate_feature(&*feature, zoom, CircleSortKey::default_value());
             feature.check()?;
             let circle_feature = CircleFeature { i, sort_key };
             // std::lower_bound: the first feature whose key is not less.
             let sort_position = features.partition_point(|f| f.sort_key < sort_key);
             features.insert(sort_position, circle_feature);
+        }
+        if constant_sort_key.is_some() {
+            // Inserting at the lower bound puts each feature before the
+            // earlier ones with an equal key: keep that order without a sort.
+            features.reverse();
         }
 
         Ok(CircleLayout {

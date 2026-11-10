@@ -82,7 +82,7 @@ fn parses_our_manifest() {
 
     // Every render and query test is found.
     let test_paths = manifest.get_test_paths();
-    assert_eq!(test_paths.len(), 1355 + 126);
+    assert_eq!(test_paths.len(), 1356 + 126);
     let default = test_paths
         .iter()
         .find(|t| t.style_path.ends_with("/render-tests/background-color/default/style.json"))

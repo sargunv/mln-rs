@@ -75,6 +75,11 @@ path = "tests/source_test.rs"
 name = "bucket_test"
 path = "tests/bucket_test.rs"
 
+# Ports test/layout/sort_key.test.cpp.
+[[test]]
+name = "sort_key_test"
+path = "tests/sort_key_test.rs"
+
 # The VectorTile tests of test/tile/vector_tile.test.cpp.
 [[test]]
 name = "vector_tile_test"

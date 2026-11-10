@@ -343,6 +343,7 @@ impl SymbolLayout {
                 || *layout.get::<IconAllowOverlap>()
                 || *layout.get::<TextIgnorePlacement>()
                 || *layout.get::<IconIgnorePlacement>());
+        let sort_features = this.sort_features_by_key && !layout.get::<SymbolSortKey>().is_constant();
         if *layout.get::<SymbolPlacement>() == SymbolPlacementType::Point {
             let modes = layout.get::<TextWritingMode>().clone();
             // Remove duplicates and preserve order.
@@ -534,6 +535,8 @@ impl SymbolLayout {
             if ft.formatted_text.is_some() || ft.icon.is_some() {
                 if this.sort_features_by_key {
                     ft.sort_key = layout.evaluate_canonical::<SymbolSortKey>(zoom, &ft, &canonical_id);
+                }
+                if sort_features {
                     let lower_bound = this.features.partition_point(|f| f.sort_key < ft.sort_key);
                     this.features.insert(lower_bound, ft);
                 } else {
@@ -542,6 +545,12 @@ impl SymbolLayout {
             }
         }
         drop(geometry_layer);
+
+        if this.sort_features_by_key && !sort_features {
+            // Inserting at the lower bound puts each feature before the
+            // earlier ones with an equal key: keep that order without a sort.
+            this.features.reverse();
+        }
 
         if *layout.get::<SymbolPlacement>() == SymbolPlacementType::Line {
             merge_lines(&mut this.features);

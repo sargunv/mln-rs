@@ -417,6 +417,10 @@ impl PatternLayoutSpec for FillExtrusionLayoutSpec {
         0.0
     }
 
+    fn constant_sort_key(_layout: &Self::Layout) -> Option<f32> {
+        None
+    }
+
     fn create_bucket(
         layout: &Self::Layout,
         layer_properties_map: &VecMap<String, Immutable<dyn LayerProperties>>,

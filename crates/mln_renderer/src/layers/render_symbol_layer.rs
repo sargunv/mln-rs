@@ -835,6 +835,13 @@ impl RenderLayer for RenderSymbolLayer {
                         source_id: self.base.base_impl.source.clone(),
                         sort_key_range: Some(*sort_key_range),
                     };
+                    if self.base.placement_data.last().is_none_or(|last| {
+                        last.sort_key_range.is_some_and(|last| last.sort_key <= sort_key_range.sort_key)
+                    }) {
+                        // Already in order, as ranges with a constant sort key always are.
+                        self.base.placement_data.push(layer_data);
+                        continue;
+                    }
                     // std::upper_bound by sort key
                     let sort_position = self.base.placement_data.partition_point(|lhs| {
                         !(sort_key_range.sort_key < lhs.sort_key_range.expect("sort key range").sort_key)
@@ -932,7 +939,8 @@ impl RenderLayer for RenderSymbolLayer {
         self.tile_bucket_versions.retain(|id, _| render_tile_ids.contains_key(id));
 
         let layout = &impl_cast(&self.base.base_impl).layout;
-        let sort_features_by_key = !layout.get::<SymbolSortKey>().is_undefined();
+        let sort_features_by_key = layout.get::<SymbolSortKey>().is_expression();
+        let constant_sort_key = layout.get::<SymbolSortKey>().is_constant();
         let is_offset = !layout.get::<IconOffset>().is_undefined();
 
         let current_zoom = state.get_zoom() as f32;
@@ -1011,8 +1019,12 @@ impl RenderLayer for RenderSymbolLayer {
 
             let mut serial_key = 1.0_f32;
             let state_guard = bucket.state();
+            // A bucket laid out before a layout change can still have the
+            // previous sort-key expression until it is rebuilt.
+            let sort_segments =
+                sort_features_by_key || (constant_sort_key && !bucket.layout.get::<SymbolSortKey>().is_constant());
             let mut add_renderables = |buffer: &Buffer, type_: SymbolType| {
-                if sort_features_by_key {
+                if sort_segments {
                     // Features need to be rendered in a specific order, so we
                     // add each segment individually
                     for (i, segment) in buffer.segments.iter().enumerate() {
@@ -1027,9 +1039,11 @@ impl RenderLayer for RenderSymbolLayer {
                     }
                 } else if !buffer.segments.is_empty() {
                     // Features can be rendered in the order produced, and as
-                    // grouped by the bucket
+                    // grouped by the bucket. With an explicit constant key,
+                    // the segment's key keeps text above icons across tiles.
+                    let sort_key = if constant_sort_key { buffer.segments[0].sort_key } else { serial_key };
                     renderable_segments.push(SegmentGroup {
-                        sort_key: serial_key,
+                        sort_key,
                         type_,
                         tile_index,
                         tile_id: tile.id,
