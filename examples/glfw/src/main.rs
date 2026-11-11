@@ -11,8 +11,11 @@
 // gives the short forms to the flags and keeps --bearing/--fov long-only.
 //
 // Port-only options: --readback FILE.png (write the presented frame once
-// the map is idle, see glfw_view.rs), --quit-after SECONDS and
-// --gesture-test (scripted input through the view's event handlers).
+// the map is idle, see glfw_view.rs), --quit-after SECONDS,
+// --gesture-test (scripted input through the view's event handlers) and
+// --no-system-fonts (or MLN_GLFW_NO_SYSTEM_FONTS set): without it, the map
+// falls back to system fonts for the scripts that glyph PBFs can't shape
+// (system_fonts.rs).
 //
 // TODO(port): SIGINT handling (C++ closes the window; here Ctrl-C ends the
 // process), the plugin registration, settings load/save, the action
@@ -24,6 +27,7 @@ use std::rc::Rc;
 use mln_glfw::glfw_renderer_frontend::GLFWRendererFrontend;
 use mln_glfw::glfw_view::GLFWView;
 use mln_glfw::settings_json::SettingsJSON;
+use mln_glfw::system_fonts;
 use mln_map::{BoundOptions, CameraOptions, Map, MapDebugOptions, MapOptions};
 use mln_renderer::Renderer;
 use mln_storage::{ClientOptions, FileSourceManager, FileSourceType, ResourceOptions};
@@ -56,6 +60,7 @@ const USAGE: &str = "  mln-glfw {OPTIONS}
       --readback=[file.png]             (port) Write the frame once the map is idle
       --quit-after=[seconds]            (port) Close the window after this time
       --gesture-test                    (port) Replay scripted input, log the camera, quit
+      --no-system-fonts                 (port) Don't fall back to system fonts for complex scripts
 ";
 
 #[derive(Default)]
@@ -78,6 +83,7 @@ struct Args {
     readback: Option<String>,
     quit_after: Option<f64>,
     gesture_test: bool,
+    no_system_fonts: bool,
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -127,6 +133,7 @@ fn parse_args() -> Result<Args, String> {
             "readback" => args.readback = Some(value(&name)?),
             "quit-after" => args.quit_after = Some(number(value(&name)?, &name)?),
             "gesture-test" => args.gesture_test = true,
+            "no-system-fonts" => args.no_system_fonts = true,
             _ => return Err(format!("Flag could not be matched: {name}")),
         }
     }
@@ -172,6 +179,10 @@ fn main() {
     if let Some(v) = args.roll {
         settings.roll = v;
     }
+
+    // Finds the system fonts while the window opens.
+    let font_discovery = (!args.no_system_fonts && std::env::var_os("MLN_GLFW_NO_SYSTEM_FONTS").is_none())
+        .then(|| std::thread::spawn(system_fonts::fallback_font_faces));
 
     let fullscreen = args.fullscreen;
     let benchmark = args.benchmark;
@@ -338,6 +349,17 @@ fn main() {
                 style = url;
             }
         }
+    }
+
+    if let Some(font_discovery) = font_discovery {
+        let faces = font_discovery.join().unwrap_or_default();
+        if faces.is_empty() {
+            Log::info(Event::Setup, "No system fonts found for the scripts that glyph PBFs can't shape");
+        } else {
+            let families: Vec<&str> = faces.iter().map(|face| face.family.as_str()).collect();
+            Log::info(Event::Setup, format!("Falling back to system fonts: {}", families.join(", ")));
+        }
+        map.borrow_mut().get_style_mut().set_fallback_font_face_list(system_fonts::into_font_faces(faces));
     }
 
     map.borrow_mut().get_style_mut().load_url(&style);
