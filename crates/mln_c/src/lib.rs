@@ -41,6 +41,7 @@ mod plugin;
 mod projection;
 mod render_target;
 mod runtime;
+mod style;
 mod style_expression;
 
 #[rustfmt::skip]

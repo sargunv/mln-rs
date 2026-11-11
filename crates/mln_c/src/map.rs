@@ -44,16 +44,21 @@ pub(crate) fn resolve(map: mln_map) -> Result<Arc<MapObject>, Error> {
     MAPS.get(map)
 }
 
+/// The generations of the map's latest snapshot, which a query or a failed
+/// command reports, as do the failure's events.
+pub(crate) fn snapshot_generations(map: &::mln_runtime::Map) -> Generations {
+    map.snapshot().map_or(Generations::default(), |snapshot| Generations {
+        snapshot: snapshot.generation,
+        render_update: snapshot.update_generation,
+    })
+}
+
 /// The generations that a command's completion reports: those it applied
-/// at, or for a failure, those of the map's latest snapshot, which the
-/// failure's events carry.
+/// at, or for a failure, those of the map's latest snapshot.
 fn generations(map: &::mln_runtime::Map, result: &Result<Applied, mln_util::Error>) -> Generations {
     match result {
         Ok(applied) => Generations { snapshot: applied.generation, render_update: applied.render_update_generation },
-        Err(_) => map.snapshot().map_or(Generations::default(), |snapshot| Generations {
-            snapshot: snapshot.generation,
-            render_update: snapshot.update_generation,
-        }),
+        Err(_) => snapshot_generations(map),
     }
 }
 
@@ -62,7 +67,7 @@ fn generations(map: &::mln_runtime::Map, result: &Result<Applied, mln_util::Erro
 /// # Safety
 ///
 /// `completion` is null or valid for the header's use of it.
-unsafe fn command(
+pub(crate) unsafe fn command(
     map: mln_map,
     completion: *const mln_completion,
     send: impl FnOnce(&::mln_runtime::Map) -> Result<::mln_runtime::Completion<Applied>, mln_util::Error>,
@@ -84,7 +89,7 @@ unsafe fn command(
 /// # Safety
 ///
 /// `completion` is null or valid for the header's use of it.
-unsafe fn query<T: Send + 'static, V: CompletionValue>(
+pub(crate) unsafe fn query<T: Send + 'static, V: CompletionValue>(
     map: mln_map,
     completion: *const mln_completion,
     send: impl FnOnce(&::mln_runtime::Map) -> Result<::mln_runtime::Completion<T>, mln_util::Error>,
@@ -96,10 +101,7 @@ unsafe fn query<T: Send + 'static, V: CompletionValue>(
     let sent = send(&object.map)?;
     let map = object.map.clone();
     completion::forward(sent, Some(pending.accept()), move |result| {
-        let generations = map.snapshot().map_or(Generations::default(), |snapshot| Generations {
-            snapshot: snapshot.generation,
-            render_update: snapshot.update_generation,
-        });
+        let generations = snapshot_generations(&map);
         (result.map(value).map_err(Error::from), generations)
     });
     Ok(())
@@ -549,24 +551,6 @@ unsafe fn selector(selector: *const mln_feature_state_selector) -> Result<Featur
     })
 }
 
-/// A value of the JSON value `json`.
-fn value(json: serde_json::Value) -> Value {
-    match json {
-        serde_json::Value::Null => Value::Null,
-        serde_json::Value::Bool(value) => Value::Bool(value),
-        serde_json::Value::Number(number) => match (number.as_u64(), number.as_i64()) {
-            (Some(value), _) => Value::Uint(value),
-            (None, Some(value)) => Value::Int(value),
-            (None, None) => Value::Double(number.as_f64().unwrap_or_default()),
-        },
-        serde_json::Value::String(value) => Value::String(value),
-        serde_json::Value::Array(values) => Value::Array(values.into_iter().map(value).collect()),
-        serde_json::Value::Object(members) => {
-            Value::Object(members.into_iter().map(|(key, member)| (key, value(member))).collect())
-        }
-    }
-}
-
 /// The state that the JSON object `json` holds, parsed on the parse thread.
 fn feature_state(json: &str) -> Result<FeatureState, Error> {
     if json.is_empty() {
@@ -575,7 +559,7 @@ fn feature_state(json: &str) -> Result<FeatureState, Error> {
     let json = json.to_owned();
     parse_thread::run(move || match serde_json::from_str(&json) {
         Ok(serde_json::Value::Object(members)) => {
-            Ok(members.into_iter().map(|(key, member)| (key, value(member))).collect())
+            Ok(members.iter().map(|(key, member)| (key.clone(), mln_conversion::json_to_value(member))).collect())
         }
         Ok(_) => Err(Error::invalid_argument("feature state must be a JSON object")),
         Err(error) => Err(Error::invalid_argument(format!("feature state isn't valid JSON: {error}"))),
