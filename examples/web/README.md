@@ -90,6 +90,17 @@ default on wasm), so the module carries no PNG or WebP decoder. The decoder
 answers later, from the event loop, so a tile worker's reply can come
 outside `TileWorker::run`; it then wakes web/worker.js for a run.
 
+## CJK glyphs are drawn locally
+
+As MapLibre GL JS does with its `localIdeographFontFamily`, the map draws
+CJK ideographs, kana, hangul and the related blocks (mln_util's
+`allows_fixed_width_glyph_generation`) in a local font, rather than
+downloading the style's glyph ranges for them, which are most of a CJK
+label's glyphs. mln_text's `DefaultLocalGlyphRasterizer` draws each in the
+map's Web Worker with an `OffscreenCanvas`, and the `GlyphManager` turns it
+into an SDF. The check turns it off, as GL JS's render tests do, so that
+its frames match the native renders.
+
 ## Caching
 
 The browser's HTTP cache caches the map's resources, as in MapLibre GL
@@ -129,7 +140,9 @@ Then open <http://localhost:8000/> in a browser with WebGPU. URL parameters
   (`[{"url": "...", "unicode-range": ["U+1000-109F"]}]`);
 - `workers=<n>`: Web Workers for the tiles (default: up to 4);
 - `width`, `height`, `ratio`: a fixed canvas size in CSS pixels and pixel
-  ratio.
+  ratio;
+- `localIdeographFontFamily=<CSS font-family list>` (default: `sans-serif`):
+  see below; empty or `false` turns it off.
 
 ## A panic stops a Web Worker
 

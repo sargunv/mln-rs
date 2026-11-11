@@ -274,6 +274,8 @@ const pageUrl = (view, count) => {
     height: view.height,
     ratio: view.ratio,
     workers: String(count),
+    // The native runner downloads every glyph, as GL JS's render tests do.
+    localIdeographFontFamily: 'false',
   });
   return `${origin}/index.html?${params}`;
 };

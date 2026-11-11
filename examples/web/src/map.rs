@@ -163,7 +163,10 @@ impl WebMap {
     /// reply arrived, a task was queued); the worker then calls `tick` soon.
     /// `load_shaper()` returns a promise of the shaper module
     /// (web/pkg/mln_web_shaper.js), initialized; the map calls it the first
-    /// time a style declares font faces.
+    /// time a style declares font faces. With
+    /// `local_ideograph_font_family` (a CSS font-family list), the map
+    /// draws CJK glyphs in it rather than downloading them, as GL JS's
+    /// `localIdeographFontFamily`.
     pub async fn create(
         canvas: web_sys::OffscreenCanvas,
         width: u32,
@@ -173,6 +176,7 @@ impl WebMap {
         post: js_sys::Function,
         wake: js_sys::Function,
         load_shaper: js_sys::Function,
+        local_ideograph_font_family: Option<String>,
     ) -> Result<WebMap, JsValue> {
         if workers == 0 {
             return Err(js_error("the map needs at least one tile worker"));
@@ -223,7 +227,7 @@ impl WebMap {
         run_loop.set_waker(Some(Arc::new(wake_host)));
         scheduler.set_waker(Some(Arc::new(wake_host)));
         let renderer_backend: Rc<dyn RendererBackend> = backend.clone();
-        let mut renderer = Renderer::new(renderer_backend, pixel_ratio as f32, None);
+        let mut renderer = Renderer::new(renderer_backend, pixel_ratio as f32, local_ideograph_font_family);
         let count = workers as usize;
         let transport = SerializingTransport::new(|_| Box::new(WebWorkers { count, post }));
         renderer.set_tile_worker_transport(transport.clone());
