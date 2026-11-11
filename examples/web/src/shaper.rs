@@ -7,6 +7,7 @@
 //! calls go to it synchronously, through JavaScript.
 
 use std::cell::RefCell;
+use std::sync::Arc;
 
 use mln_renderer::text::font_face_engine::{FontFaceEngine, FontFaceShaper};
 use mln_text::HBShapeAdjust;
@@ -143,9 +144,9 @@ impl FontFaceEngine for ShaperModuleEngine {
         });
     }
 
-    fn load(&self, type_: GlyphIDType, data: &[u8]) -> Option<Box<dyn FontFaceShaper>> {
+    fn load(&self, type_: GlyphIDType, data: Arc<Vec<u8>>) -> Option<Box<dyn FontFaceShaper>> {
         let opened = MODULE.with(|module| match &*module.borrow() {
-            Some(Module::Loaded(module)) => module.open_face(type_.0, data),
+            Some(Module::Loaded(module)) => module.open_face(type_.0, &data),
             _ => Err(JsValue::from_str("the shaper module isn't loaded")),
         });
         match opened {

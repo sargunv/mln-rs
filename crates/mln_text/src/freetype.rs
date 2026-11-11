@@ -26,8 +26,9 @@ impl FreeTypeLibrary {
 /// `FreeTypeFace`.
 #[derive(Clone)]
 pub struct FreeTypeFace {
-    /// `memoryFile`: the face reads from its own copy of the font data.
-    memory_file: Arc<[u8]>,
+    /// `memoryFile`: the font data the face reads from, shared with whoever
+    /// handed it over (such as the response it arrived in).
+    memory_file: Arc<Vec<u8>>,
     face: Option<ft::face::Face>,
     /// The hinted glyph loader (FT_Load_Glyph at 24 px), made on first use.
     scaler: Arc<OnceLock<Option<skrifa::ScalerFont>>>,
@@ -38,14 +39,15 @@ impl FreeTypeFace {
     /// (`FT_New_Face` on a file).
     pub fn from_file(font_file_name: &str, lib: &FreeTypeLibrary) -> Self {
         match std::fs::read(font_file_name) {
-            Ok(data) => Self::from_memory(&data, lib),
-            Err(_) => FreeTypeFace { memory_file: Arc::from(Vec::new()), face: None, scaler: Arc::default() },
+            Ok(data) => Self::from_memory(data, lib),
+            Err(_) => FreeTypeFace { memory_file: Arc::default(), face: None, scaler: Arc::default() },
         }
     }
 
     /// `FreeTypeFace(const char* fontData, size_t fontDataSize, const FreeTypeLibrary&)`.
-    pub fn from_memory(font_data: &[u8], _lib: &FreeTypeLibrary) -> Self {
-        let memory_file: Arc<[u8]> = Arc::from(font_data.to_vec());
+    /// The face keeps `font_data` instead of copying it.
+    pub fn from_memory(font_data: impl Into<Arc<Vec<u8>>>, _lib: &FreeTypeLibrary) -> Self {
+        let memory_file = font_data.into();
         let face = match ft::face::Face::open(&memory_file) {
             Ok(mut face) => {
                 Self::force_ucs2_charmap(&mut face);
@@ -83,7 +85,7 @@ impl FreeTypeFace {
     }
 
     /// The font data the face reads from.
-    pub fn data(&self) -> &Arc<[u8]> {
+    pub fn data(&self) -> &Arc<Vec<u8>> {
         &self.memory_file
     }
 

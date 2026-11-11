@@ -68,6 +68,18 @@ fn hb_tiny_features() -> [Feature; 3] {
     ]
 }
 
+/// A table of a font file, in the file's own bytes.
+struct TableBytes {
+    data: Arc<Vec<u8>>,
+    range: std::ops::Range<usize>,
+}
+
+impl AsRef<[u8]> for TableBytes {
+    fn as_ref(&self) -> &[u8] {
+        &self.data[self.range.clone()]
+    }
+}
+
 /// The tables of `face` as HarfBuzz (hb-ft's `_hb_ft_reference_table`, i.e.
 /// `FT_Load_Sfnt_Table`) sees them with HB_TINY.
 fn hb_tiny_font(face: &FreeTypeFace) -> Option<Font> {
@@ -81,15 +93,19 @@ fn hb_tiny_font(face: &FreeTypeFace) -> Option<Font> {
             return None;
         }
         let &(offset, length) = tables.get(&bytes)?;
-        let mut table = data.get(offset..offset + length)?.to_vec();
+        let range = offset..offset + length;
+        let table = data.get(range.clone())?;
         if (&bytes == b"GSUB" || &bytes == b"GPOS") && table.len() >= 4 {
             // HB_NO_VAR: find_variations_index never finds one. Version 1.0
             // headers have no FeatureVariations offset.
             if table[0..2] == [0, 1] && table[2..4] != [0, 0] {
+                let mut table = table.to_vec();
                 table[2] = 0;
                 table[3] = 0;
+                return Some(Blob::from(table));
             }
         }
+        let table: Arc<dyn AsRef<[u8]> + Send + Sync> = Arc::new(TableBytes { data: data.clone(), range });
         Some(Blob::from(table))
     };
     Font::new(TableFunction::new(Arc::new(table_fn)), 0)
@@ -97,7 +113,7 @@ fn hb_tiny_font(face: &FreeTypeFace) -> Option<Font> {
 
 impl Impl {
     /// `HBShaper::Impl::Impl`: `hb_ft_font_create` + `hb_buffer_create`.
-    pub fn new(type_: GlyphIDType, font_file_data: &[u8], lib: &FreeTypeLibrary) -> Self {
+    pub fn new(type_: GlyphIDType, font_file_data: impl Into<Arc<Vec<u8>>>, lib: &FreeTypeLibrary) -> Self {
         let face = FreeTypeFace::from_memory(font_file_data, lib);
         let font = if face.is_valid() { hb_tiny_font(&face) } else { None };
         Impl { type_, face, font, plans: Mutex::new(HashMap::new()) }

@@ -1,6 +1,8 @@
 // Ports src/mln/text/harfbuzz.hpp and src/mln/text/harfbuzz.cpp (the
 // MLN_TEXT_SHAPING_HARFBUZZ build).
 
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 
 use crate::freetype::FreeTypeLibrary;
@@ -29,7 +31,8 @@ pub struct HBShaper {
 
 impl HBShaper {
     /// `HBShaper(GlyphIDType, const std::string& fontFileData, const FreeTypeLibrary&)`.
-    pub fn new(type_: GlyphIDType, font_file_data: &[u8], lib: &FreeTypeLibrary) -> Self {
+    /// The shaper keeps `font_file_data` instead of copying it.
+    pub fn new(type_: GlyphIDType, font_file_data: impl Into<Arc<Vec<u8>>>, lib: &FreeTypeLibrary) -> Self {
         HBShaper { impl_: Impl::new(type_, font_file_data, lib) }
     }
 

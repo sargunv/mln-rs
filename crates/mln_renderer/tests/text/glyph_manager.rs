@@ -529,9 +529,9 @@ impl FontFaceEngine for DeferredEngine {
         self.ready.lock().unwrap().push(ready);
     }
 
-    fn load(&self, _type: GlyphIDType, data: &[u8]) -> Option<Box<dyn FontFaceShaper>> {
+    fn load(&self, _type: GlyphIDType, data: Arc<Vec<u8>>) -> Option<Box<dyn FontFaceShaper>> {
         self.loads.fetch_add(1, Ordering::SeqCst);
-        (data == b"font").then(|| Box::new(FakeShaper) as Box<dyn FontFaceShaper>)
+        (data.as_slice() == b"font").then(|| Box::new(FakeShaper) as Box<dyn FontFaceShaper>)
     }
 }
 
