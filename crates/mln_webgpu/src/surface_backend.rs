@@ -112,6 +112,7 @@ pub struct SurfaceState {
     device: wgpu::Device,
     queue: wgpu::Queue,
     swap_chain_format: wgpu::TextureFormat,
+    alpha_mode: wgpu::CompositeAlphaMode,
     surface_usage: Cell<wgpu::TextureUsages>,
     depth_stencil_format: Cell<Option<wgpu::TextureFormat>>,
 
@@ -160,7 +161,7 @@ impl SurfaceState {
             // Use Immediate mode (no vsync) in benchmark mode, Fifo (vsync) otherwise
             present_mode: if self.enable_vsync { self.vsync_present_mode.get() } else { wgpu::PresentMode::Immediate },
             desired_maximum_frame_latency: 2,
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            alpha_mode: self.alpha_mode,
             view_formats: vec![self.swap_chain_format],
             color_space: wgpu::SurfaceColorSpace::Auto,
         }
@@ -504,6 +505,7 @@ struct Parts {
 /// The surface configuration `SurfaceBackend::finish` uses.
 struct SurfaceChoice {
     swap_chain_format: wgpu::TextureFormat,
+    alpha_mode: wgpu::CompositeAlphaMode,
     surface_usage: wgpu::TextureUsages,
     present_mode: wgpu::PresentMode,
     depth_stencil_format: wgpu::TextureFormat,
@@ -596,7 +598,15 @@ impl SurfaceBackend {
         Ok(Self::finish(
             renderer_backend,
             Parts { instance, adapter: Some(adapter), device, queue, surface: Some(surface) },
-            SurfaceChoice { swap_chain_format, surface_usage, present_mode, depth_stencil_format },
+            // A window shows nothing behind it: wgpu's Auto picks Opaque
+            // where the surface supports it.
+            SurfaceChoice {
+                swap_chain_format,
+                alpha_mode: wgpu::CompositeAlphaMode::Auto,
+                surface_usage,
+                present_mode,
+                depth_stencil_format,
+            },
             framebuffer_size,
             cap_frame_rate,
             adapter_info,
@@ -609,13 +619,16 @@ impl SurfaceBackend {
     /// There is no adapter: the surface is configured with `format`, for
     /// rendering, and for readback too if `usages` (what the surface
     /// supports) has COPY_SRC; it presents in FIFO order, which every
-    /// surface supports.
+    /// surface supports. With `alpha_mode` `PreMultiplied`, what is behind
+    /// the surface (the page behind a browser canvas) shows where the map
+    /// draws nothing; the map's colors are premultiplied.
     pub fn from_host(
         instance: wgpu::Instance,
         device: wgpu::Device,
         queue: wgpu::Queue,
         surface: wgpu::Surface<'static>,
         format: wgpu::TextureFormat,
+        alpha_mode: wgpu::CompositeAlphaMode,
         usages: wgpu::TextureUsages,
         framebuffer_size: Size,
     ) -> SurfaceBackend {
@@ -635,6 +648,7 @@ impl SurfaceBackend {
             Parts { instance, adapter: None, device, queue, surface: Some(surface) },
             SurfaceChoice {
                 swap_chain_format: format,
+                alpha_mode,
                 surface_usage: wgpu::TextureUsages::RENDER_ATTACHMENT | (usages & wgpu::TextureUsages::COPY_SRC),
                 present_mode: wgpu::PresentMode::Fifo,
                 depth_stencil_format,
@@ -656,7 +670,7 @@ impl SurfaceBackend {
         adapter_info: wgpu::AdapterInfo,
     ) -> SurfaceBackend {
         let Parts { instance, adapter, device, queue, surface } = parts;
-        let SurfaceChoice { swap_chain_format, surface_usage, present_mode, depth_stencil_format } = choice;
+        let SurfaceChoice { swap_chain_format, alpha_mode, surface_usage, present_mode, depth_stencil_format } = choice;
         renderer_backend.set_color_format(Some(swap_chain_format));
 
         let backend_impl = renderer_backend.backend_impl().clone();
@@ -665,6 +679,7 @@ impl SurfaceBackend {
             device: device.clone(),
             queue: queue.clone(),
             swap_chain_format,
+            alpha_mode,
             surface_usage: Cell::new(surface_usage),
             depth_stencil_format: Cell::new(Some(depth_stencil_format)),
             current: RefCell::new(None),
@@ -904,6 +919,7 @@ mod tests {
             },
             SurfaceChoice {
                 swap_chain_format: format,
+                alpha_mode: wgpu::CompositeAlphaMode::Auto,
                 surface_usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                 present_mode: wgpu::PresentMode::Fifo,
                 depth_stencil_format: wgpu::TextureFormat::Depth24PlusStencil8,

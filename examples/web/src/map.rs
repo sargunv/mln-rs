@@ -233,6 +233,10 @@ impl WebMap {
             queue,
             surface,
             format,
+            // Like GL JS's canvas: the page shows where the map draws
+            // nothing. wgpu lists only Opaque for a WebGPU canvas, which
+            // takes Premultiplied too.
+            wgpu::CompositeAlphaMode::PreMultiplied,
             usages,
             physical(size, pixel_ratio),
         ));
