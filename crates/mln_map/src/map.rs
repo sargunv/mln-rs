@@ -392,7 +392,9 @@ impl Map {
             RendererEvent::UnusedStyleImages(ids) => {
                 if self.unused_style_image_policy == UnusedStyleImagePolicy::Remove {
                     for id in ids {
-                        self.style.remove_image(&id);
+                        if self.style.get_image(&id).is_some_and(|image| !image.keep_unused) {
+                            self.style.remove_image(&id);
+                        }
                     }
                 }
             }
@@ -1261,6 +1263,14 @@ impl Map {
     /// An update that a command group holds back counts when it shows.
     pub fn update_generation(&self) -> u64 {
         self.updates.generation()
+    }
+
+    /// The generation of the update that shows the map's changes so far:
+    /// [`update_generation`](Self::update_generation), or while a command
+    /// group holds an update back, the one that the outermost group's end
+    /// shows.
+    pub fn pending_update_generation(&self) -> u64 {
+        self.updates.pending_generation()
     }
 
     /// Copies the map's state.

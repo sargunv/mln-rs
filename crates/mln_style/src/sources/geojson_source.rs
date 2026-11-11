@@ -137,6 +137,25 @@ pub fn create_geojson_data(
     geojson_source_impl::create(geojson, sequenced_scheduler, options)
 }
 
+/// Builds the data of a [`GeoJSONSource`] with the source's options. It is
+/// `Send`, so the work can leave the source's thread.
+#[derive(Clone)]
+pub struct GeoJSONDataBuilder {
+    options: Immutable<GeoJSONOptions>,
+    sequenced_scheduler: SchedulerPtr,
+}
+
+impl GeoJSONDataBuilder {
+    pub fn options(&self) -> &Immutable<GeoJSONOptions> {
+        &self.options
+    }
+
+    /// Fails as [`create_geojson_data`] does.
+    pub fn build(&self, geojson: &GeoJSON) -> Result<Arc<dyn GeoJSONData>, mln_util::Error> {
+        create_geojson_data(geojson, self.sequenced_scheduler.clone(), &self.options)
+    }
+}
+
 struct Inner {
     base: SourceBase,
     url: RefCell<Option<String>>,
@@ -208,6 +227,22 @@ impl GeoJSONSource {
             create_geojson_data(geojson, self.inner.sequenced_scheduler.clone(), &self.impl_().get_options().clone())?;
         self.set_geojson_data(Some(data));
         Ok(())
+    }
+
+    /// What builds data for this source with its options, on any thread,
+    /// for [`set_geojson_data`](Self::set_geojson_data) to take.
+    pub fn data_builder(&self) -> GeoJSONDataBuilder {
+        GeoJSONDataBuilder {
+            options: self.impl_().get_options().clone(),
+            sequenced_scheduler: self.inner.sequenced_scheduler.clone(),
+        }
+    }
+
+    /// A count that goes up each time new data, a URL, or a URL's response
+    /// replaces the source's data or starts to: data built while it stays
+    /// the same is still the newest.
+    pub fn data_generation(&self) -> u64 {
+        self.inner.request_generation.get()
     }
 
     /// `setGeoJSONData(data)`.

@@ -21,6 +21,7 @@ mod offline;
 mod render;
 mod resources;
 mod runtime;
+mod style;
 
 pub use completion::Completion;
 pub use event::{EventHandler, EventMask, EventSource, EventType, RuntimeEvent, RuntimeEventKind};
@@ -37,3 +38,4 @@ pub use render::{
 };
 pub use resources::{CacheDatabaseOperation, ResourceProvider, ResourceRequest};
 pub use runtime::{Runtime, RuntimeOptions};
+pub use style::{CustomSourceCallbacks, GeoJsonSourceInfo, LayerInfo, SourceInfo, SourceKind, SourceTiles};

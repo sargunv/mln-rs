@@ -21,6 +21,7 @@ use crate::event::{EventMask, EventSource, RuntimeEvent, RuntimeEventKind};
 use crate::feature_state::{FeatureState, FeatureStateSelector, FeatureStateStore};
 use crate::render::{AttachOptions, RenderSession, RenderTarget, SessionId, Worker, worker_post};
 use crate::runtime::{Outbox, Runtime, RuntimeCore, RuntimeShared, post};
+use crate::style::{CallbackSources, GeoJsonUpdates};
 
 /// The ID of a map, unique within its runtime.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -148,7 +149,7 @@ impl MapShared {
     }
 
     /// Numbers a command and posts it to the runtime's thread.
-    fn send<R: Send + 'static>(
+    pub(crate) fn send<R: Send + 'static>(
         &self,
         command: impl FnOnce(&mut RuntimeCore, &mut Outbox, MapId, u64, Resolver<R>) + Send + 'static,
     ) -> Result<Completion<R>, Error> {
@@ -200,7 +201,7 @@ impl Drop for MapShared {
 /// [`ErrorKind::InvalidState`](mln_util::ErrorKind).
 #[derive(Clone)]
 pub struct Map {
-    shared: Arc<MapShared>,
+    pub(crate) shared: Arc<MapShared>,
 }
 
 impl std::fmt::Debug for Map {
@@ -221,13 +222,13 @@ fn released() -> Error {
     Error::invalid_state("the map was released")
 }
 
-fn style_not_loaded() -> Error {
+pub(crate) fn style_not_loaded() -> Error {
     Error::invalid_state("style is not loaded")
 }
 
 /// The error of a command whose map failed to be built, or was released
 /// while the command was on its way.
-fn missing_map() -> Error {
+pub(crate) fn missing_map() -> Error {
     Error::invalid_state("the map failed to be built or was released")
 }
 
@@ -281,7 +282,7 @@ impl Map {
 
     /// Sends a command that runs `apply` on the map's entry, and completes
     /// with what `finish` makes of its result and the map after it.
-    fn send<T: 'static, R: Send + 'static>(
+    pub(crate) fn send<T: 'static, R: Send + 'static>(
         &self,
         apply: impl FnOnce(&mut MapEntry, &mut Outbox) -> Result<T, Error> + Send + 'static,
         finish: impl FnOnce(T, &MapEntry) -> R + Send + 'static,
@@ -292,7 +293,7 @@ impl Map {
     }
 
     /// A command that changes the map.
-    fn command(
+    pub(crate) fn command(
         &self,
         apply: impl FnOnce(&mut mln_map::Map) -> Result<(), Error> + Send + 'static,
     ) -> Result<Completion<Applied>, Error> {
@@ -300,7 +301,7 @@ impl Map {
     }
 
     /// A command that reads the map.
-    fn query<T: Send + 'static>(
+    pub(crate) fn query<T: Send + 'static>(
         &self,
         read: impl FnOnce(&mut mln_map::Map) -> Result<T, Error> + Send + 'static,
     ) -> Result<Completion<T>, Error> {
@@ -699,7 +700,8 @@ impl Map {
     /// [`ErrorKind::NotFound`](mln_util::ErrorKind) when the style has no
     /// such source, and [`ErrorKind::InvalidState`](mln_util::ErrorKind)
     /// when a layer uses it or the style isn't loaded. The source's features
-    /// lose their state.
+    /// lose their state, and a custom source's callbacks drop before the
+    /// completion.
     pub fn remove_style_source(&self, source_id: impl Into<String>) -> Result<Completion<Applied>, Error> {
         let source_id = source_id.into();
         self.send(
@@ -711,8 +713,9 @@ impl Map {
                 if style.get_source(&source_id).is_none() {
                     return Err(Error::not_found(format!("source \"{source_id}\" does not exist")));
                 }
-                if style.get_layers().iter().any(|layer| layer.get_source_id() == source_id) {
-                    return Err(Error::invalid_state(format!("source \"{source_id}\" is in use by a layer")));
+                if let Some(layer) = style.get_layers().into_iter().find(|layer| layer.get_source_id() == source_id) {
+                    let message = format!("source \"{source_id}\" is used by layer \"{}\"", layer.get_id());
+                    return Err(Error::invalid_state(message));
                 }
                 style.remove_source(&source_id);
                 entry.feature_state.remove_source(&source_id);
@@ -963,16 +966,20 @@ pub(crate) struct MapEntry {
     /// Whether a flush of the map's events is on its way.
     flush_scheduled: Arc<AtomicBool>,
     pub(crate) feature_state: FeatureStateStore,
+    /// The callbacks of the custom sources that commands added.
+    pub(crate) callback_sources: CallbackSources,
+    /// The GeoJSON data that commands set and that is still being built.
+    pub(crate) geojson_updates: GeoJsonUpdates,
     #[expect(dead_code, reason = "the renderers of the map's render sessions read it")]
     pub(crate) tile_cache_enabled: bool,
 }
 
 impl MapEntry {
-    fn applied(&self) -> Applied {
+    pub(crate) fn applied(&self) -> Applied {
         Applied {
             sequence: self.applied,
             generation: self.core.generation(),
-            render_update_generation: self.core.update_generation(),
+            render_update_generation: self.core.pending_update_generation(),
         }
     }
 }
@@ -1017,6 +1024,8 @@ pub(crate) fn create(
             session: None,
             flush_scheduled,
             feature_state: FeatureStateStore::default(),
+            callback_sources: CallbackSources::default(),
+            geojson_updates: GeoJsonUpdates::default(),
             tile_cache_enabled: options.tile_cache_enabled,
         },
     );
@@ -1031,7 +1040,7 @@ pub(crate) fn create(
 /// runs `after` with what `apply` returned. Then it tells the map's render
 /// session that the command ran, so `after` can send the session what the
 /// session must see first.
-fn apply_command<T>(
+pub(crate) fn apply_command<T>(
     core: &mut RuntimeCore,
     id: MapId,
     sequence: u64,
@@ -1054,7 +1063,7 @@ fn apply_command<T>(
 
 /// Runs a command on the map `id` and completes with what `finish` makes of
 /// its result and the map after it.
-fn run_command<T, R: 'static>(
+pub(crate) fn run_command<T, R: 'static>(
     core: &mut RuntimeCore,
     id: MapId,
     sequence: u64,
@@ -1107,10 +1116,13 @@ fn load_style(
 
 /// Handles what the map's style and renderer reported, publishes its state,
 /// and sends its events.
-fn flush(core: &mut RuntimeCore, id: MapId, outbox: &mut Outbox) {
+pub(crate) fn flush(core: &mut RuntimeCore, id: MapId, outbox: &mut Outbox) {
     let Some(entry) = core.maps.get_mut(&id) else { return };
     entry.flush_scheduled.store(false, Ordering::SeqCst);
     let events = entry.core.drain_events();
+    // The sources that left the style, by a command or a style load, let go
+    // of what they held before anything reports the change.
+    crate::style::reconcile(entry, outbox);
     let generation = entry.core.generation();
     *entry.published.snapshot.lock_unpoisoned() = Some(entry.core.snapshot());
 
@@ -1158,6 +1170,7 @@ fn remove(core: &mut RuntimeCore, id: MapId, done: Option<Resolver<()>>, outbox:
         if let Some(pending) = entry.pending_still.take() {
             outbox.resolve(pending.resolver, Err(Error::cancelled("the map was released")));
         }
+        crate::style::release(&mut entry, outbox);
         drop(entry);
     }
     if let Some(done) = done {

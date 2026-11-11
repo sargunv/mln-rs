@@ -275,9 +275,11 @@ fn a_command_group_holds_updates_back_until_it_ends() {
         camera: CameraOptions::default().with_zoom(Some(3.0)),
         ..CameraUpdate::default()
     }));
-    assert_eq!(before, held.render_update_generation);
+    // The held change names the update that the outermost end shows.
+    assert_eq!(before + 1, held.render_update_generation);
+    assert_eq!(before, map.snapshot().unwrap().update_generation);
     assert_eq!(3.0, map.snapshot().unwrap().view.camera.zoom);
-    assert_eq!(before, wait(nested.end()).render_update_generation);
+    assert_eq!(before + 1, wait(nested.end()).render_update_generation);
 
     drop(group);
     assert!(wait(map.request_repaint()).render_update_generation > before);

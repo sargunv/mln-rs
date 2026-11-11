@@ -84,6 +84,31 @@ impl Style {
         self.add_layer(layer, before_layer_id)
     }
 
+    /// Moves the layer named `id` below the layer named `before_layer_id`,
+    /// or above every layer when it is `None`. A move below itself changes
+    /// nothing.
+    ///
+    /// Fails with [`ErrorKind::InvalidState`](mln_util::ErrorKind) while the
+    /// style isn't loaded, and with `NotFound` if the style has no layer
+    /// named `id` or `before_layer_id`.
+    pub fn move_layer(&mut self, id: &str, before_layer_id: Option<&str>) -> Result<(), Error> {
+        self.require_loaded()?;
+        if self.get_layer(id).is_none() {
+            return Err(layer_not_found(id));
+        }
+        if let Some(before) = before_layer_id {
+            if before == id {
+                return Ok(());
+            }
+            if self.get_layer(before).is_none() {
+                return Err(Error::not_found(format!("before_layer_id {} does not exist", quote(before))));
+            }
+        }
+        self.impl_.mutated = true;
+        self.impl_.move_layer(id, before_layer_id);
+        Ok(())
+    }
+
     /// The layer named `id` as a
     /// [layer](https://maplibre.org/maplibre-style-spec/layers/) object, or
     /// `None` if the style has no such layer. Adding the JSON back gives the
@@ -211,6 +236,25 @@ impl Style {
     pub fn light_property_json(&self, name: &str) -> Option<String> {
         let property = self.get_light().get_property(name);
         (property.get_kind() != Kind::Undefined).then(|| json_text(property.get_value()))
+    }
+
+    /// Sets the value `name` that the style's `global-state` expressions
+    /// read to the JSON value `json`. A `null` resets it to the default that
+    /// the style's `state` gives it.
+    ///
+    /// Fails with [`ErrorKind::InvalidState`](mln_util::ErrorKind) while the
+    /// style isn't loaded, and with `InvalidArgument` if `json` isn't valid
+    /// JSON.
+    pub fn set_global_state_property_json(&mut self, name: &str, json: &str) -> Result<(), Error> {
+        self.require_loaded()?;
+        let value = parse(json, &format!("global state property {}", quote(name)))?;
+        self.set_global_state_property(name, &mln_conversion::json_to_value(&value))
+    }
+
+    /// The values that the style's `global-state` expressions read, as a
+    /// JSON object.
+    pub fn global_state_json(&self) -> String {
+        json_text(&Value::Object(self.get_global_state()))
     }
 
     /// Fails with [`ErrorKind::InvalidState`](mln_util::ErrorKind) while the

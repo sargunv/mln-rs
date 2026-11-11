@@ -138,6 +138,21 @@ fn the_unused_image_policy_decides_what_stays() {
 }
 
 #[test]
+fn an_image_that_keeps_itself_outlasts_the_remove_policy() {
+    let _loop = RunLoop::new();
+    let mut map = map(MapOptions::new());
+    map.get_style_mut().load_json(STYLE);
+    let mut kept = (*image("kept")).clone();
+    kept.keep_unused = true;
+    map.get_style_mut().add_image(Arc::new(kept));
+    map.get_style_mut().add_image(image("dropped"));
+    report(&map, RendererEvent::UnusedStyleImages(vec!["kept".to_owned(), "dropped".to_owned()]));
+    map.process_events();
+    assert!(map.get_style().get_image("kept").is_some());
+    assert!(map.get_style().get_image("dropped").is_none());
+}
+
+#[test]
 fn a_still_image_completes_with_a_full_frame() {
     let _loop = RunLoop::new();
     let mut map = map(MapOptions::new().with_map_mode(MapMode::Static));

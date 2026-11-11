@@ -9,8 +9,9 @@ use mln_util::size::Size;
 /// What a map does with a style image once no layer uses it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum UnusedStyleImagePolicy {
-    /// Remove it from the style. A layer that uses it again reports it
-    /// missing with [`MapEvent::StyleImageMissing`](crate::MapEvent::StyleImageMissing).
+    /// Remove it from the style, unless the image sets `keep_unused`. A
+    /// layer that uses it again reports it missing with
+    /// [`MapEvent::StyleImageMissing`](crate::MapEvent::StyleImageMissing).
     #[default]
     Remove,
     /// Keep it in the style.

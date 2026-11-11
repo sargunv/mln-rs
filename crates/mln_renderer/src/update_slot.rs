@@ -106,6 +106,14 @@ impl UpdateSlot {
         self.shared.state.lock_unpoisoned().generation
     }
 
+    /// The generation of the update that shows what was published last:
+    /// the current one, or while a group holds an update back, the one its
+    /// end shows.
+    pub fn pending_generation(&self) -> u64 {
+        let state = self.shared.state.lock_unpoisoned();
+        state.generation + u64::from(state.held.is_some())
+    }
+
     /// Opens a command group. Groups nest.
     pub fn begin_group(&self) {
         self.shared.state.lock_unpoisoned().group_depth += 1;

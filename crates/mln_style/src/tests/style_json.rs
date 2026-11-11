@@ -307,3 +307,22 @@ fn the_style_light_round_trips_through_json() {
     style.set_light_property_json("intensity", "null").unwrap();
     assert_eq!(style.light_property_json("intensity"), None);
 }
+
+#[test]
+fn global_state_reads_back_defaults_and_set_properties() {
+    let mut style = Style::new(1.0);
+    assert_fails(style.set_global_state_property_json("theme", "true"), ErrorKind::InvalidState, "style is not loaded");
+    style.load_json(r#"{"version":8,"sources":{},"layers":[],"state":{"theme":{"default":"light"}}}"#);
+    assert_eq!(style.global_state_json(), r#"{"theme":"light"}"#);
+
+    style.set_global_state_property_json("theme", r#"["dark",{"enabled":true}]"#).unwrap();
+    assert_eq!(style.global_state_json(), r#"{"theme":["dark",{"enabled":true}]}"#);
+    assert_fails(
+        style.set_global_state_property_json("theme", "{not json"),
+        ErrorKind::InvalidArgument,
+        "not valid JSON",
+    );
+    assert_eq!(style.global_state_json(), r#"{"theme":["dark",{"enabled":true}]}"#);
+    style.set_global_state_property_json("theme", "null").unwrap();
+    assert_eq!(style.global_state_json(), r#"{"theme":"light"}"#);
+}

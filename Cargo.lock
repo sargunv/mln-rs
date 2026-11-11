@@ -2397,17 +2397,23 @@ version = "0.0.10"
 dependencies = [
  "httpmock",
  "mln-rs-actor",
+ "mln-rs-conversion",
  "mln-rs-feature",
+ "mln-rs-geojson",
+ "mln-rs-geometry",
  "mln-rs-gfx",
  "mln-rs-map",
  "mln-rs-renderer",
  "mln-rs-storage",
  "mln-rs-storage-offline",
  "mln-rs-style",
+ "mln-rs-style-types",
  "mln-rs-text",
+ "mln-rs-tile-id",
  "mln-rs-util",
  "mln-rs-webgpu",
  "pollster",
+ "serde_json",
  "wgpu",
 ]
 

@@ -148,6 +148,12 @@ pub trait Source {
     }
 }
 
+/// Whether `a` and `b` are the same source, rather than two that share an
+/// ID: handles that clone one source are the same.
+pub fn same_source(a: &dyn Source, b: &dyn Source) -> bool {
+    std::ptr::eq(a.base(), b.base())
+}
+
 /// Replaces the impl with a mutated copy and notifies the observer, as the
 /// C++ setters do (`createMutable()`, mutate, `baseImpl = ...`,
 /// `observer->onSourceChanged(*this)`).

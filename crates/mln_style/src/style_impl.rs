@@ -651,6 +651,15 @@ impl Impl {
         Ok(self.layers.get_mut(&id).expect("layer just added"))
     }
 
+    /// Moves the layer `id` below the layer `before`, or above every layer,
+    /// as one change. Returns false when the style has no layer `id`.
+    pub fn move_layer(&mut self, id: &str, before: Option<&str>) -> bool {
+        let Some(layer) = self.layers.remove(id) else { return false };
+        self.layers.add(layer, before);
+        self.observer().on_update();
+        true
+    }
+
     pub fn remove_layer(&mut self, id: &str) -> Option<Box<dyn Layer>> {
         let layer = self.layers.remove(id);
 

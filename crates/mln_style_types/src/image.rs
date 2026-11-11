@@ -61,6 +61,10 @@ pub struct Impl {
     /// If `icon-text-fit` is used in a layer with this image, this option
     /// defines constraints on the vertical scaling of the image.
     pub text_fit_height: Option<TextFit>,
+    /// Whether the image stays in its style once no layer uses it, whatever
+    /// the map's policy for unused images says.
+    #[serde(default)]
+    pub keep_unused: bool,
 }
 
 impl PartialEq for Impl {
@@ -136,7 +140,18 @@ impl Impl {
         } else if content.as_ref().is_some_and(|content| !validate_content(content, &image.size)) {
             return Err(Error::invalid_argument("content area is invalid"));
         }
-        Ok(Impl { id, image, pixel_ratio, sdf, stretch_x, stretch_y, content, text_fit_width, text_fit_height })
+        Ok(Impl {
+            id,
+            image,
+            pixel_ratio,
+            sdf,
+            stretch_x,
+            stretch_y,
+            content,
+            text_fit_width,
+            text_fit_height,
+            keep_unused: false,
+        })
     }
 }
 

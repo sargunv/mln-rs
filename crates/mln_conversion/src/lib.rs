@@ -18,7 +18,7 @@ pub use conversion::{
     object_member, to_bool, to_double, to_geojson, to_number, to_string, to_value,
 };
 pub use get_json_type::get_json_type;
-pub use value_conversion::value_to_json;
+pub use value_conversion::{json_to_value, value_to_json};
 
 #[cfg(test)]
 mod tests;

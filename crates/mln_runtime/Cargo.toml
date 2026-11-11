@@ -15,7 +15,10 @@ doctest = false
 
 [dependencies]
 feature.workspace = true
+geojson.workspace = true
+geometry.workspace = true
 mln_actor.workspace = true
+mln_conversion.workspace = true
 mln_gfx.workspace = true
 mln_map.workspace = true
 mln_renderer.workspace = true
@@ -23,9 +26,12 @@ mln_renderer.workspace = true
 mln_storage = { workspace = true, features = ["sqlite"] }
 mln_storage_offline.workspace = true
 mln_style.workspace = true
+mln_style_types.workspace = true
 mln_text.workspace = true
+mln_tile_id.workspace = true
 mln_util.workspace = true
 mln_webgpu.workspace = true
+serde_json.workspace = true
 # The device of an offscreen session.
 wgpu.workspace = true
 

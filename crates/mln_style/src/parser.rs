@@ -7,7 +7,6 @@
 
 use std::collections::{HashMap, HashSet};
 
-use feature::{Value, ValueObject};
 use mln_conversion::{Convertible, Error};
 use mln_util::LatLng;
 use mln_util::constants::DEFAULT_TRANSITION_DURATION;
@@ -229,7 +228,9 @@ impl Parser {
                 continue;
             };
             // emplace: the first definition wins.
-            self.global_state_defaults.entry(property_name.clone()).or_insert_with(|| parse_state_value(default));
+            self.global_state_defaults
+                .entry(property_name.clone())
+                .or_insert_with(|| mln_conversion::json_to_value(default));
         }
     }
 
@@ -404,33 +405,6 @@ fn parse_layer(id: &str, layers_map: &mut HashMap<String, LayerEntry<'_>>, stack
         };
         if let Some(entry) = layers_map.get_mut(id) {
             entry.layer = Some(converted);
-        }
-    }
-}
-
-/// Deep conversion of a style JSON value to an mln::Value (unlike
-/// conversion::toValue, which only handles scalar values).
-fn parse_state_value(value: &serde_json::Value) -> Value {
-    match value {
-        serde_json::Value::Null => Value::Null,
-        serde_json::Value::Bool(b) => Value::Bool(*b),
-        serde_json::Value::String(s) => Value::String(s.clone()),
-        serde_json::Value::Number(n) => {
-            if let Some(u) = n.as_u64() {
-                Value::Uint(u)
-            } else if let Some(i) = n.as_i64() {
-                Value::Int(i)
-            } else {
-                Value::Double(n.as_f64().unwrap_or(0.0))
-            }
-        }
-        serde_json::Value::Array(array) => Value::Array(array.iter().map(parse_state_value).collect()),
-        serde_json::Value::Object(object) => {
-            let mut result = ValueObject::new();
-            for (key, member) in object {
-                result.entry(key.clone()).or_insert_with(|| parse_state_value(member));
-            }
-            Value::Object(result)
         }
     }
 }
