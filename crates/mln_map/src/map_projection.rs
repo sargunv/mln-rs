@@ -3,7 +3,7 @@
 // gtests-core: added for test/map/map.test.cpp (LatLngForPixelUnwrapped,
 // PixelForLatLngAfterZoomAroundAPointAcrossTheAntimeridian).
 
-use mln_map_types::{CameraOptions, TransformState};
+use mln_map_types::{CameraOptions, MapView, TransformState};
 use mln_util::geo::{EdgeInsets, LatLng, ScreenCoordinate, WrapMode};
 
 use crate::map::{Map, camera_for_lat_lngs};
@@ -22,6 +22,14 @@ impl MapProjection {
     /// `MapProjection(const TransformState&)`.
     pub fn from_state(state: TransformState) -> Self {
         MapProjection { transform: Transform::from_state(state) }
+    }
+
+    /// A projection for one view of a map, from a [`MapSnapshot`] or a
+    /// rendered frame. `Err`: as [`MapView::to_state`].
+    ///
+    /// [`MapSnapshot`]: crate::MapSnapshot
+    pub fn from_view(view: &MapView) -> Result<Self, String> {
+        Ok(Self::from_state(view.to_state()?))
     }
 
     pub fn pixel_for_lat_lng(&self, lat_lng: &LatLng) -> ScreenCoordinate {

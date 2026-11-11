@@ -165,6 +165,11 @@ pub struct MapImpl {
     pub(crate) tile_lod_zoom_shift: Cell<f64>,
     pub(crate) tile_lod_mode: Cell<TileLodMode>,
 
+    /// Grows with each change to the map's state.
+    pub(crate) generation: Cell<u64>,
+    /// Counts the updates sent to the renderer frontend.
+    pub(crate) update_generation: Cell<u64>,
+
     /// `std::shared_ptr<FileSource> fileSource`. Declared after `style`:
     /// C++ destroys members in reverse order, so the style (and its sprite
     /// requests) goes first.
@@ -217,6 +222,8 @@ impl MapImpl {
             tile_lod_pitch_threshold: Cell::new((60.0 / 180.0) * std::f64::consts::PI),
             tile_lod_zoom_shift: Cell::new(0.0),
             tile_lod_mode: Cell::new(TileLodMode::Default),
+            generation: Cell::new(1),
+            update_generation: Cell::new(0),
             file_source,
         });
         map.transform.borrow_mut().set_north_orientation(map_options.north_orientation());
@@ -283,7 +290,16 @@ impl MapImpl {
         self.observer.on_source_changed(source_id);
     }
 
+    /// Records a change to the map's state.
+    pub(crate) fn changed(&self) {
+        self.generation.set(self.generation.get() + 1);
+    }
+
     pub fn on_update(&self) {
+        // Each update request comes from a change, so the generation grows
+        // even in still mode, where no update goes out.
+        self.changed();
+
         // Don't load/render anything in still mode until explicitly requested.
         if self.mode != MapMode::Continuous && self.still_image_request.borrow().is_none() {
             return;
@@ -331,18 +347,21 @@ impl MapImpl {
             }
         };
 
+        self.update_generation.set(self.update_generation.get() + 1);
         // `update` takes C++'s `std::shared_ptr<UpdateParameters>` as an `Arc`.
         #[allow(clippy::arc_with_non_send_sync)]
         self.renderer_frontend.update(Arc::new(params));
     }
 
     pub fn on_style_loading(&self) {
+        self.changed();
         self.loading.set(true);
         self.renderer_fully_loaded.set(false);
         self.observer.on_will_start_loading_map();
     }
 
     pub fn on_style_loaded(&self) {
+        self.changed();
         if !self.camera_mutated.get() {
             let camera = self.style.borrow().get_default_camera();
             self.jump_to(&camera);
@@ -428,7 +447,10 @@ impl RendererObserver for MapImpl {
         placement_changed: bool,
         stats: Arc<RenderingStats>,
     ) {
-        self.renderer_fully_loaded.set(render_mode == RenderMode::Full);
+        let fully_loaded = render_mode == RenderMode::Full;
+        if self.renderer_fully_loaded.replace(fully_loaded) != fully_loaded {
+            self.changed();
+        }
 
         let stats_view_updated = match (self.rendering_stats_view.borrow_mut().as_mut(), self.style.try_borrow_mut()) {
             (Some(view), Ok(mut style)) => {

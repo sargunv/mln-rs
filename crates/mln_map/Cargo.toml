@@ -34,5 +34,9 @@ mln_util.workspace = true
 name = "gtest_action_journal"
 path = "tests/gtest_action_journal.rs"
 
+[[test]]
+name = "map_snapshot"
+path = "tests/map_snapshot.rs"
+
 [lints]
 workspace = true

@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use mln_map_types::{
     AnimationOptions, BoundOptions, CameraDelta, CameraError, CameraMomentum, CameraOptions, CameraUpdate,
-    ConstrainMode, MapDebugOptions, MapMode, NorthOrientation, ProjectionMode, TileLodMode, TransformState,
+    ConstrainMode, MapDebugOptions, MapMode, MapView, NorthOrientation, ProjectionMode, TileLodMode, TransformState,
     ViewportMode,
 };
 use mln_renderer::{ExceptionPtr, FeatureInfo, LayerFeaturesMap, RendererFrontend, RenderingStats, SourceLayerID};
@@ -21,6 +21,7 @@ use mln_util::size::Size;
 use crate::map_impl::{MapImpl, StillImageCallback, StillImageRequest, StyleMut};
 use crate::map_observer::MapObserver;
 use crate::map_options::MapOptions;
+use crate::map_snapshot::{CameraBounds, FreeCamera, MapSnapshot, TileSettings};
 use crate::rendering_stats_view::{RenderingStatsView, RenderingStatsViewOptions};
 
 pub struct Map {
@@ -125,6 +126,7 @@ impl Map {
         debug_options: MapDebugOptions,
         callback: StillImageCallback,
     ) {
+        self.impl_.changed();
         self.impl_.camera_mutated.set(true);
         self.impl_.debug_options.set(debug_options);
         self.impl_.transform.borrow_mut().jump_to(camera);
@@ -146,6 +148,7 @@ impl Map {
     /// `style::Style& getStyle()`: a guard that derefs to `&mut Style`; the
     /// style's observer calls made through it reach the map when it drops.
     pub fn get_style_mut(&mut self) -> StyleMut<'_> {
+        self.impl_.changed();
         StyleMut::new(&self.impl_)
     }
 
@@ -409,6 +412,9 @@ impl Map {
     // MARK: - Bounds
 
     pub fn set_bounds(&mut self, options: &BoundOptions) -> Result<(), String> {
+        if *options != BoundOptions::default() {
+            self.impl_.changed();
+        }
         let mut change_camera = false;
         let mut camera_options = CameraOptions::default();
 
@@ -766,6 +772,9 @@ impl Map {
     /// the style is replaced. The text needs the style's glyphs. Disabling
     /// the view removes them.
     pub fn enable_rendering_stats_view(&mut self, value: bool) {
+        if value != self.is_rendering_stats_view_enabled() {
+            self.impl_.changed();
+        }
         if value {
             if self.is_rendering_stats_view_enabled() {
                 return;
@@ -778,6 +787,55 @@ impl Map {
             if let Some(view) = view {
                 view.destroy(&mut self.get_style_mut());
             }
+        }
+    }
+
+    /// Grows with each change to the map's state: each call that changes it,
+    /// and each change that loading, rendering and animations make.
+    pub fn generation(&self) -> u64 {
+        self.impl_.generation.get()
+    }
+
+    /// Counts the updates that the map has sent to its renderer frontend.
+    pub fn update_generation(&self) -> u64 {
+        self.impl_.update_generation.get()
+    }
+
+    /// Copies the map's state.
+    pub fn snapshot(&self) -> MapSnapshot {
+        let impl_ = &self.impl_;
+        let transform = impl_.transform.borrow();
+        let state = transform.get_state();
+        let bounds = state.get_lat_lng_bounds();
+        let free_camera = state.get_free_camera_options();
+        MapSnapshot {
+            generation: impl_.generation.get(),
+            update_generation: impl_.update_generation.get(),
+            debug: impl_.debug_options.get(),
+            fully_loaded: self.is_fully_loaded(),
+            rendering_stats_view_enabled: self.is_rendering_stats_view_enabled(),
+            gesture_in_progress: transform.is_gesture_in_progress(),
+            transition_in_progress: transform.in_transition(),
+            tile: TileSettings {
+                prefetch_zoom_delta: impl_.prefetch_zoom_delta.get(),
+                lod_min_radius: impl_.tile_lod_min_radius.get(),
+                lod_scale: impl_.tile_lod_scale.get(),
+                lod_pitch_threshold: mln_math::rad2deg(impl_.tile_lod_pitch_threshold.get()),
+                lod_zoom_shift: impl_.tile_lod_zoom_shift.get(),
+                lod_mode: impl_.tile_lod_mode.get(),
+            },
+            bounds: CameraBounds {
+                bounds: (bounds != LatLngBounds::infinite()).then_some(bounds),
+                min_zoom: state.get_min_zoom(),
+                max_zoom: state.get_max_zoom(),
+                min_pitch: mln_math::rad2deg(state.get_min_pitch()),
+                max_pitch: mln_math::rad2deg(state.get_max_pitch()),
+            },
+            free_camera: FreeCamera {
+                position: free_camera.position.unwrap_or_default(),
+                orientation: free_camera.orientation.unwrap_or_default(),
+            },
+            view: MapView::from_state(state, f64::from(impl_.pixel_ratio)),
         }
     }
 

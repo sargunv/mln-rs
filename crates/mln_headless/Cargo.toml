@@ -38,6 +38,10 @@ path = "tests/m1_background_render_test.rs"
 name = "local_glyph_rasterizer_test"
 path = "tests/local_glyph_rasterizer_test.rs"
 
+[[test]]
+name = "map_snapshot_test"
+path = "tests/map_snapshot_test.rs"
+
 # gtests-core: test/renderer/feature_tracking.test.cpp.
 [[test]]
 name = "gtest_feature_tracking"

@@ -28,6 +28,7 @@ use mln_util::size::Size;
 use mln_util::vectors::{Vec3, Vec4};
 
 use crate::camera::{CameraOptions, FreeCameraOptions};
+use crate::map_view::Camera as MapCamera;
 use crate::mode::{ConstrainMode, ViewportMode};
 use crate::tile_coordinate::TileCoordinate;
 use crate::util_camera::Camera;
@@ -781,15 +782,22 @@ impl TransformState {
     // MARK: - Camera options
 
     pub fn get_camera_options(&self, padding: Option<EdgeInsets>) -> CameraOptions {
-        CameraOptions::default()
-            .with_center(Some(self.get_lat_lng(WrapMode::Unwrapped)))
-            .with_center_altitude(Some(self.get_center_altitude()))
-            .with_padding(Some(padding.unwrap_or(self.edge_insets)))
-            .with_zoom(Some(self.get_zoom()))
-            .with_bearing(Some(mln_math::rad2deg(-self.bearing)))
-            .with_pitch(Some(mln_math::rad2deg(self.pitch)))
-            .with_roll(Some(mln_math::rad2deg(self.roll)))
-            .with_fov(Some(mln_math::rad2deg(self.fov)))
+        let camera = MapCamera { padding: padding.unwrap_or(self.edge_insets), ..self.camera() };
+        CameraOptions::from(camera)
+    }
+
+    /// The camera, with the center in the copy of the world that it is in.
+    pub fn camera(&self) -> MapCamera {
+        MapCamera {
+            center: self.get_lat_lng(WrapMode::Unwrapped),
+            center_altitude: self.get_center_altitude(),
+            padding: self.edge_insets,
+            zoom: self.get_zoom(),
+            bearing: mln_math::rad2deg(-self.bearing),
+            pitch: mln_math::rad2deg(self.pitch),
+            roll: mln_math::rad2deg(self.roll),
+            fov: mln_math::rad2deg(self.fov),
+        }
     }
 
     // MARK: - EdgeInsets
