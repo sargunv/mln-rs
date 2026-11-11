@@ -28,11 +28,13 @@ macro_rules! versioned {
         // SAFETY: a bindgen struct of the headers, whose first field is
         // `size` (asserted above) and whose fields are integers, pointers and
         // nullable function pointers.
-        unsafe impl Versioned for $ty {
+        unsafe impl $crate::abi::Versioned for $ty {
             const NAME: &'static str = stringify!($ty);
         }
     )+};
 }
+
+pub(crate) use versioned;
 
 versioned!(mln_completion, mln_delivery_queue_options);
 
@@ -81,7 +83,6 @@ pub(crate) unsafe fn read_sized<T: Versioned>(pointer: *const T) -> Result<T, Er
 ///
 /// `pointer` is null, or points to a writable struct of the `size` it
 /// declares, with `size` initialized.
-#[cfg_attr(not(test), expect(dead_code, reason = "no implemented function writes a versioned struct yet"))]
 pub(crate) unsafe fn write_sized<T: Versioned>(pointer: *mut T, value: &T) -> Result<(), Error> {
     if pointer.is_null() {
         return Err(Error::invalid_argument(format!("{} must not be null", T::NAME)));
@@ -105,10 +106,8 @@ pub(crate) unsafe fn write_sized<T: Versioned>(pointer: *mut T, value: &T) -> Re
 /// The `fields` bits of an option struct, which say which of its members are
 /// set.
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(not(test), expect(dead_code, reason = "no implemented function takes an option struct yet"))]
 pub(crate) struct Fields(u32);
 
-#[cfg_attr(not(test), expect(dead_code, reason = "no implemented function takes an option struct yet"))]
 impl Fields {
     /// Checks that `bits` sets only bits of `known`.
     pub(crate) fn new(bits: u32, known: u32, name: &str) -> Result<Self, Error> {

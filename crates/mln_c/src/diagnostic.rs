@@ -46,3 +46,22 @@ pub(crate) unsafe fn unsupported(diagnostic: *mut mln_diagnostic, function: &str
     unsafe { write(diagnostic, &format!("{function} is not implemented")) };
     MLN_STATUS_UNSUPPORTED
 }
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use core::ffi::CStr;
+
+    use super::*;
+
+    /// A diagnostic of the full size, with a message to overwrite.
+    pub(crate) fn diagnostic() -> Box<mln_diagnostic> {
+        let mut diagnostic = Box::new(mln_diagnostic { size: size_of::<mln_diagnostic>() as u32, message: [0; 4096] });
+        diagnostic.message[0] = b'x' as _;
+        diagnostic
+    }
+
+    pub(crate) fn message(diagnostic: &mln_diagnostic) -> &str {
+        // SAFETY: `message` holds a NUL within its capacity.
+        unsafe { CStr::from_ptr(diagnostic.message.as_ptr()) }.to_str().unwrap_or("not UTF-8")
+    }
+}

@@ -18,5 +18,20 @@ name = "maplibre_native_c"
 crate-type = ["cdylib", "staticlib"]
 doctest = false
 
+[dependencies]
+feature.workspace = true
+geojson.workspace = true
+mln_conversion.workspace = true
+mln_expression.workspace = true
+mln_map.workspace = true
+mln_map_types.workspace = true
+mln_storage.workspace = true
+mln_style.workspace = true
+mln_tile_id.workspace = true
+mln_util.workspace = true
+mln_vec_map.workspace = true
+rapidjson.workspace = true
+serde_json.workspace = true
+
 [lints]
 workspace = true

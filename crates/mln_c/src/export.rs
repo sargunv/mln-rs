@@ -24,6 +24,9 @@ use crate::generated::types::{MLN_STATUS_OK, mln_diagnostic, mln_status};
 /// the status.
 macro_rules! export {
     ($diagnostic:ident, $(non_null($($pointer:ident),+ $(,)?),)? $body:block) => {{
+        // The closure gives the body a scope for `?` and `return`, which a
+        // body without them doesn't need.
+        #[allow(clippy::redundant_closure_call)]
         let result: ::core::result::Result<(), $crate::error::Error> = match $crate::export::refusal() {
             ::core::option::Option::Some(error) => ::core::result::Result::Err(error),
             ::core::option::Option::None => (|| -> ::core::result::Result<(), $crate::error::Error> {
@@ -73,14 +76,12 @@ thread_local! {
 /// because the thread holds something that the call could need again, such as
 /// a lock that isn't reentrant. Until it ends, every [`export!`] entry point on
 /// this thread fails with `MLN_STATUS_INVALID_STATE` and its diagnostic.
-#[cfg_attr(not(test), expect(dead_code, reason = "no implemented callback forbids reentry yet"))]
 pub(crate) struct ForbidReentry {
     previous: Option<&'static str>,
     // The scope belongs to the thread that entered it.
     _thread: PhantomData<*const ()>,
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "no implemented callback forbids reentry yet"))]
 impl ForbidReentry {
     pub(crate) fn enter(diagnostic: &'static str) -> Self {
         Self { previous: REFUSAL.replace(Some(diagnostic)), _thread: PhantomData }

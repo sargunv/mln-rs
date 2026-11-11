@@ -2027,6 +2027,21 @@ dependencies = [
 [[package]]
 name = "mln-rs-c"
 version = "0.0.10"
+dependencies = [
+ "mln-rs-conversion",
+ "mln-rs-expression",
+ "mln-rs-feature",
+ "mln-rs-geojson",
+ "mln-rs-map",
+ "mln-rs-map-types",
+ "mln-rs-rapidjson",
+ "mln-rs-storage",
+ "mln-rs-style",
+ "mln-rs-tile-id",
+ "mln-rs-util",
+ "mln-rs-vec-map",
+ "serde_json",
+]
 
 [[package]]
 name = "mln-rs-c-abi-gen"

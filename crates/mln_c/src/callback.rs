@@ -68,7 +68,6 @@ pub(crate) fn resolve_queue(queue: mln_delivery_queue) -> Result<Option<Arc<Queu
 
 /// A registration whose calls take its user data, such as a resource
 /// provider or an event handler.
-#[cfg_attr(not(test), expect(dead_code, reason = "no implemented function takes a callback registration yet"))]
 pub(crate) struct Registration {
     user_data: UserData,
     release: mln_user_data_release,
@@ -77,7 +76,6 @@ pub(crate) struct Registration {
     accepted: bool,
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "no implemented function takes a callback registration yet"))]
 impl Registration {
     /// Checks a registration's members: `name` names it in diagnostics, and
     /// `has_callback` says whether it sets the callback it needs.

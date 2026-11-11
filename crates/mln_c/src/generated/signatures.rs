@@ -4,6 +4,12 @@ use super::types::*;
 
 const _: unsafe extern "C" fn() -> u32 = crate::base::mln_c_version;
 const _: unsafe extern "C" fn(
+    mln_canonical_tile_id,
+    mln_logical_size,
+    *mut mln_camera_options,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_camera_for_tile;
+const _: unsafe extern "C" fn(
     *const mln_delivery_queue_options,
     *mut mln_delivery_queue,
     *mut mln_diagnostic,
@@ -11,8 +17,120 @@ const _: unsafe extern "C" fn(
 const _: unsafe extern "C" fn(mln_delivery_queue, *mut mln_diagnostic) -> mln_status = crate::delivery::mln_delivery_queue_dispatch;
 const _: unsafe extern "C" fn(mln_delivery_queue) = crate::delivery::mln_delivery_queue_release;
 const _: unsafe extern "C" fn(
+    mln_projected_meters,
+    *mut mln_lat_lng,
+    *mut mln_diagnostic,
+) -> mln_status = crate::projection::mln_lat_lng_for_projected_meters;
+const _: unsafe extern "C" fn(*mut mln_diagnostic) -> mln_status = crate::logging::mln_log_clear_callback;
+const _: unsafe extern "C" fn(
+    mln_log_severity_flags,
+    *mut mln_diagnostic,
+) -> mln_status = crate::logging::mln_log_set_async_severity_mask;
+const _: unsafe extern "C" fn(
+    *const mln_log_handler,
+    *mut mln_diagnostic,
+) -> mln_status = crate::logging::mln_log_set_callback;
+const _: unsafe extern "C" fn(
+    mln_logical_extent,
+    *mut u32,
+    *mut u32,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_target::mln_logical_extent_physical_size;
+const _: unsafe extern "C" fn(
+    *const mln_map_view,
+    *mut mln_map_projection,
+    *mut mln_diagnostic,
+) -> mln_status = crate::projection::mln_map_projection_create;
+const _: unsafe extern "C" fn(
+    mln_map_projection,
+    *mut mln_map_projection_camera_result,
+    *mut mln_diagnostic,
+) -> mln_status = crate::projection::mln_map_projection_get_camera;
+const _: unsafe extern "C" fn(
+    mln_map_projection,
+    mln_screen_point,
+    *mut mln_lat_lng,
+    *mut mln_diagnostic,
+) -> mln_status = crate::projection::mln_map_projection_lat_lng_for_pixel;
+const _: unsafe extern "C" fn(
+    mln_map_projection,
+    mln_screen_point,
+    *mut mln_lat_lng,
+    *mut mln_diagnostic,
+) -> mln_status = crate::projection::mln_map_projection_lat_lng_for_pixel_unwrapped;
+const _: unsafe extern "C" fn(
+    mln_map_projection,
+    *const mln_screen_point,
+    usize,
+    *mut mln_lat_lng,
+    *mut mln_diagnostic,
+) -> mln_status = crate::projection::mln_map_projection_lat_lngs_for_pixels;
+const _: unsafe extern "C" fn(
+    mln_map_projection,
+    *const mln_screen_point,
+    usize,
+    *mut mln_lat_lng,
+    *mut mln_diagnostic,
+) -> mln_status = crate::projection::mln_map_projection_lat_lngs_for_pixels_unwrapped;
+const _: unsafe extern "C" fn(
+    mln_map_projection,
+    f64,
+    *mut f64,
+    *mut mln_diagnostic,
+) -> mln_status = crate::projection::mln_map_projection_meters_per_pixel_at_latitude;
+const _: unsafe extern "C" fn(
+    mln_map_projection,
+    mln_lat_lng,
+    *mut mln_screen_point,
+    *mut mln_diagnostic,
+) -> mln_status = crate::projection::mln_map_projection_pixel_for_lat_lng;
+const _: unsafe extern "C" fn(
+    mln_map_projection,
+    *const mln_lat_lng,
+    usize,
+    *mut mln_screen_point,
+    *mut mln_diagnostic,
+) -> mln_status = crate::projection::mln_map_projection_pixels_for_lat_lngs;
+const _: unsafe extern "C" fn(mln_map_projection) = crate::projection::mln_map_projection_release;
+const _: unsafe extern "C" fn(
+    mln_map_projection,
+    *const mln_camera_options,
+    *mut mln_diagnostic,
+) -> mln_status = crate::projection::mln_map_projection_set_camera;
+const _: unsafe extern "C" fn(
+    *mut mln_network_status,
+    *mut mln_diagnostic,
+) -> mln_status = crate::runtime::mln_network_get_status;
+const _: unsafe extern "C" fn(mln_network_status, *mut mln_diagnostic) -> mln_status = crate::runtime::mln_network_set_status;
+const _: unsafe extern "C" fn() -> mln_open_gl_context_provider_flags = crate::render_target::mln_open_gl_supported_context_provider_mask;
+const _: unsafe extern "C" fn(
     *const mln_plugin_descriptor_v1,
     *mut ::core::ffi::c_char,
     usize,
 ) -> mln_plugin_status = crate::plugin::mln_plugin_register_v1;
+const _: unsafe extern "C" fn(
+    mln_lat_lng,
+    *mut mln_projected_meters,
+    *mut mln_diagnostic,
+) -> mln_status = crate::projection::mln_projected_meters_for_lat_lng;
+const _: unsafe extern "C" fn(
+    mln_buffer_view,
+    *const mln_style_expression_options,
+    *mut mln_style_expression,
+    *mut mln_diagnostic,
+) -> mln_status = crate::style_expression::mln_style_expression_create;
+const _: unsafe extern "C" fn(
+    mln_style_expression,
+    *const mln_style_expression_inputs,
+    *mut ::core::ffi::c_char,
+    usize,
+    *mut usize,
+    *mut mln_diagnostic,
+) -> mln_status = crate::style_expression::mln_style_expression_evaluate;
+const _: unsafe extern "C" fn(
+    mln_style_expression,
+    *mut mln_style_expression_info,
+    *mut mln_diagnostic,
+) -> mln_status = crate::style_expression::mln_style_expression_get_info;
+const _: unsafe extern "C" fn(mln_style_expression) = crate::style_expression::mln_style_expression_release;
 const _: unsafe extern "C" fn() -> mln_render_backend_flags = crate::base::mln_supported_render_backend_mask;

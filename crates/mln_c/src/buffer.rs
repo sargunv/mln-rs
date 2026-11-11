@@ -13,7 +13,6 @@ use crate::generated::types::mln_buffer_view;
 ///
 /// `view.data` is null or points to `view.size` bytes that stay readable and
 /// unchanged for `'a`.
-#[cfg_attr(not(test), expect(dead_code, reason = "no implemented function takes a buffer view yet"))]
 pub(crate) unsafe fn bytes<'a>(view: mln_buffer_view, name: &str) -> Result<&'a [u8], Error> {
     if view.size == 0 {
         return Ok(&[]);
@@ -30,7 +29,6 @@ pub(crate) unsafe fn bytes<'a>(view: mln_buffer_view, name: &str) -> Result<&'a 
 /// # Safety
 ///
 /// As for [`bytes`].
-#[cfg_attr(not(test), expect(dead_code, reason = "no implemented function takes text yet"))]
 pub(crate) unsafe fn text<'a>(view: mln_buffer_view, name: &str) -> Result<&'a str, Error> {
     // SAFETY: the caller's contract.
     let bytes = unsafe { bytes(view, name) }?;
@@ -68,7 +66,6 @@ impl LentText {
 ///
 /// `out` is null or points to `capacity` writable bytes, and `out_length` is
 /// null or points to a writable `usize`.
-#[cfg_attr(not(test), expect(dead_code, reason = "no implemented function writes text out yet"))]
 pub(crate) unsafe fn write_text(
     text: &str,
     out: *mut c_char,

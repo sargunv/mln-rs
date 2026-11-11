@@ -222,15 +222,6 @@ pub unsafe extern "C" fn mln_binding_render_session_abandon_at_exit(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_camera_for_tile(
-    tile: mln_canonical_tile_id,
-    logical_size: mln_logical_size,
-    out_camera: *mut mln_camera_options,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_camera_for_tile") }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_frame_pacer_release(pacer: mln_frame_pacer) {}
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_http_header_transform_response_set_header(
@@ -243,55 +234,6 @@ pub unsafe extern "C" fn mln_http_header_transform_response_set_header(
         crate::diagnostic::unsupported(
             out_diagnostic,
             "mln_http_header_transform_response_set_header",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_lat_lng_for_projected_meters(
-    meters: mln_projected_meters,
-    out_coordinate: *mut mln_lat_lng,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_lat_lng_for_projected_meters",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_log_clear_callback(
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_log_clear_callback") }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_log_set_async_severity_mask(
-    mask: mln_log_severity_flags,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_log_set_async_severity_mask")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_log_set_callback(
-    handler: *const mln_log_handler,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_log_set_callback") }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_logical_extent_physical_size(
-    extent: mln_logical_extent,
-    out_width: *mut u32,
-    out_height: *mut u32,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_logical_extent_physical_size",
         )
     }
 }
@@ -1026,139 +968,6 @@ pub unsafe extern "C" fn mln_map_move_style_layer(
     unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_move_style_layer") }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_projection_create(
-    view: *const mln_map_view,
-    out_projection: *mut mln_map_projection,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_projection_create")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_projection_get_camera(
-    projection: mln_map_projection,
-    out_result: *mut mln_map_projection_camera_result,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_projection_get_camera")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_projection_lat_lng_for_pixel(
-    projection: mln_map_projection,
-    point: mln_screen_point,
-    out_coordinate: *mut mln_lat_lng,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_map_projection_lat_lng_for_pixel",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_projection_lat_lng_for_pixel_unwrapped(
-    projection: mln_map_projection,
-    point: mln_screen_point,
-    out_coordinate: *mut mln_lat_lng,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_map_projection_lat_lng_for_pixel_unwrapped",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_projection_lat_lngs_for_pixels(
-    projection: mln_map_projection,
-    points: *const mln_screen_point,
-    point_count: usize,
-    out_coordinates: *mut mln_lat_lng,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_map_projection_lat_lngs_for_pixels",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_projection_lat_lngs_for_pixels_unwrapped(
-    projection: mln_map_projection,
-    points: *const mln_screen_point,
-    point_count: usize,
-    out_coordinates: *mut mln_lat_lng,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_map_projection_lat_lngs_for_pixels_unwrapped",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_projection_meters_per_pixel_at_latitude(
-    projection: mln_map_projection,
-    latitude: f64,
-    out_meters_per_pixel: *mut f64,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_map_projection_meters_per_pixel_at_latitude",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_projection_pixel_for_lat_lng(
-    projection: mln_map_projection,
-    coordinate: mln_lat_lng,
-    out_point: *mut mln_screen_point,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_map_projection_pixel_for_lat_lng",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_projection_pixels_for_lat_lngs(
-    projection: mln_map_projection,
-    coordinates: *const mln_lat_lng,
-    coordinate_count: usize,
-    out_points: *mut mln_screen_point,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_map_projection_pixels_for_lat_lngs",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_projection_release(projection: mln_map_projection) {}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_projection_set_camera(
-    projection: mln_map_projection,
-    camera: *const mln_camera_options,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_projection_set_camera")
-    }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_release(
     map: mln_map,
     completion: *const mln_completion,
@@ -1604,20 +1413,6 @@ pub unsafe extern "C" fn mln_map_update_camera(
     unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_update_camera") }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_network_get_status(
-    out_status: *mut mln_network_status,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_network_get_status") }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_network_set_status(
-    status: mln_network_status,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_network_set_status") }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_offscreen_device_create(
     options: *const mln_offscreen_device_options,
     out_device: *mut mln_offscreen_device,
@@ -1640,25 +1435,8 @@ pub unsafe extern "C" fn mln_ohos_frame_pacer_create(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_open_gl_supported_context_provider_mask() -> mln_open_gl_context_provider_flags {
-    0
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_plugin_get_register_function_v1() -> mln_plugin_register_function_v1 {
     None
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_projected_meters_for_lat_lng(
-    coordinate: mln_lat_lng,
-    out_meters: *mut mln_projected_meters,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_projected_meters_for_lat_lng",
-        )
-    }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_render_frame_batch_release(batch: mln_render_frame_batch) {}
@@ -2509,42 +2287,6 @@ pub unsafe extern "C" fn mln_runtime_update_offline_region_metadata(
         )
     }
 }
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_style_expression_create(
-    expression: mln_buffer_view,
-    options: *const mln_style_expression_options,
-    out_expression: *mut mln_style_expression,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_style_expression_create")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_style_expression_evaluate(
-    expression: mln_style_expression,
-    inputs: *const mln_style_expression_inputs,
-    out_json: *mut ::core::ffi::c_char,
-    json_capacity: usize,
-    out_json_length: *mut usize,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_style_expression_evaluate")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_style_expression_get_info(
-    expression: mln_style_expression,
-    out_info: *mut mln_style_expression_info,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_style_expression_get_info")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_style_expression_release(expression: mln_style_expression) {}
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_vulkan_device_create(
     options: *const mln_vulkan_device_options,

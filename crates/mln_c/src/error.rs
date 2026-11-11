@@ -14,7 +14,6 @@ use crate::generated::types::{
 /// `MLN_STATUS_WRONG_THREAD`, which only the C layer reports
 /// ([`Error::wrong_thread`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(not(test), expect(dead_code, reason = "no implemented function fails with every kind yet"))]
 pub(crate) enum ErrorKind {
     InvalidArgument,
     InvalidState,
@@ -39,6 +38,23 @@ impl ErrorKind {
             Self::TargetLost => MLN_STATUS_TARGET_LOST,
             Self::NotFound => MLN_STATUS_NOT_FOUND,
             Self::AlreadyExists => MLN_STATUS_ALREADY_EXISTS,
+        }
+    }
+}
+
+impl From<mln_util::ErrorKind> for ErrorKind {
+    fn from(kind: mln_util::ErrorKind) -> Self {
+        use mln_util::ErrorKind as Core;
+        match kind {
+            Core::InvalidArgument => Self::InvalidArgument,
+            Core::InvalidState => Self::InvalidState,
+            Core::Unsupported => Self::Unsupported,
+            Core::Native => Self::Native,
+            Core::Cancelled => Self::Cancelled,
+            Core::Busy => Self::Busy,
+            Core::TargetLost => Self::TargetLost,
+            Core::NotFound => Self::NotFound,
+            Core::AlreadyExists => Self::AlreadyExists,
         }
     }
 }
@@ -90,6 +106,12 @@ impl Error {
     }
 }
 
+impl From<mln_util::Error> for Error {
+    fn from(error: mln_util::Error) -> Self {
+        Self::new(error.kind.into(), error.message)
+    }
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.message)
@@ -120,5 +142,11 @@ mod tests {
             assert_eq!(Error::new(kind, "message").status(), status);
         }
         assert_eq!(Error::wrong_thread("elsewhere").status(), MLN_STATUS_WRONG_THREAD);
+    }
+
+    #[test]
+    fn a_core_error_keeps_its_kind_and_message() {
+        let error = Error::from(mln_util::Error::not_found("no layer"));
+        assert_eq!((error.status(), error.message()), (MLN_STATUS_NOT_FOUND, "no layer"));
     }
 }
