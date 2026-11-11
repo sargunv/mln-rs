@@ -38,15 +38,86 @@ const _: unsafe extern "C" fn(
 ) -> mln_status = crate::render_target::mln_logical_extent_physical_size;
 const _: unsafe extern "C" fn(
     mln_map,
+    *const mln_camera_delta,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_apply_camera_delta;
+const _: unsafe extern "C" fn(
+    mln_map,
     *const mln_completion,
     *mut mln_diagnostic,
 ) -> mln_status = crate::map::mln_map_begin_command_group;
+const _: unsafe extern "C" fn(
+    mln_map,
+    mln_buffer_view,
+    *const mln_camera_fit_options,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_camera_for_geometry;
+const _: unsafe extern "C" fn(
+    mln_map,
+    mln_lat_lng_bounds,
+    *const mln_camera_fit_options,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_camera_for_lat_lng_bounds;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_lat_lng,
+    usize,
+    *const mln_camera_fit_options,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_camera_for_lat_lngs;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_cancel_camera_transitions;
+const _: unsafe extern "C" fn(
+    mln_map,
+    u64,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_cancel_camera_transitions_with_id;
 const _: unsafe extern "C" fn(mln_map, *mut mln_diagnostic) -> mln_status = crate::map::mln_map_dispose;
 const _: unsafe extern "C" fn(
     mln_map,
     *const mln_completion,
     *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_dump_debug_logs;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_completion,
+    *mut mln_diagnostic,
 ) -> mln_status = crate::map::mln_map_end_command_group;
+const _: unsafe extern "C" fn(
+    mln_map,
+    mln_buffer_view,
+    *const mln_camera_fit_update,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_fit_camera_to_geometry;
+const _: unsafe extern "C" fn(
+    mln_map,
+    mln_lat_lng_bounds,
+    *const mln_camera_fit_update,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_fit_camera_to_lat_lng_bounds;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_lat_lng,
+    usize,
+    *const mln_camera_fit_update,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_fit_camera_to_lat_lngs;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_get_camera;
 const _: unsafe extern "C" fn(
     mln_map,
     *const mln_feature_state_selector,
@@ -68,6 +139,12 @@ const _: unsafe extern "C" fn(
     *const mln_completion,
     *mut mln_diagnostic,
 ) -> mln_status = crate::map::mln_map_get_style_url;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_camera_options,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_lat_lng_bounds_for_camera;
 const _: unsafe extern "C" fn(
     *const mln_map_view,
     *mut mln_map_projection,
@@ -153,6 +230,18 @@ const _: unsafe extern "C" fn(
 ) -> mln_status = crate::map::mln_map_resize;
 const _: unsafe extern "C" fn(
     mln_map,
+    *const mln_bound_options,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_set_bounds;
+const _: unsafe extern "C" fn(
+    mln_map,
+    mln_map_debug_flags,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_set_debug_flags;
+const _: unsafe extern "C" fn(
+    mln_map,
     mln_runtime_event_flags,
     *const mln_completion,
     *mut mln_diagnostic,
@@ -166,6 +255,24 @@ const _: unsafe extern "C" fn(
 ) -> mln_status = crate::map::mln_map_set_feature_state;
 const _: unsafe extern "C" fn(
     mln_map,
+    *const mln_free_camera_options,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_set_free_camera_options;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_projection_mode_options,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_set_projection_mode;
+const _: unsafe extern "C" fn(
+    mln_map,
+    bool,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_set_rendering_stats_view_enabled;
+const _: unsafe extern "C" fn(
+    mln_map,
     mln_buffer_view,
     *const mln_completion,
     *mut mln_diagnostic,
@@ -176,6 +283,24 @@ const _: unsafe extern "C" fn(
     *const mln_completion,
     *mut mln_diagnostic,
 ) -> mln_status = crate::map::mln_map_set_style_url;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_map_tile_options,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_set_tile_options;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_map_viewport_options,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_set_viewport_options;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_camera_update,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::camera::mln_map_update_camera;
 const _: unsafe extern "C" fn(
     *mut mln_network_status,
     *mut mln_diagnostic,

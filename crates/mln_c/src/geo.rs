@@ -1,11 +1,16 @@
-//! The headers' geometry values: coordinates, screen points, insets and tile
-//! IDs, checked as they enter and converted to the core's types.
+//! The headers' geometry values: coordinates and bounds, screen points, insets,
+//! GeoJSON geometries and tile IDs, checked as they enter and converted to the
+//! core's types.
 
 use mln_tile_id::CanonicalTileID;
-use mln_util::geo::{EdgeInsets, LatLng, ScreenCoordinate};
+use mln_util::geo::{EdgeInsets, LatLng, LatLngBounds, ScreenCoordinate};
+use mln_util::geometry::Geometry;
 
 use crate::error::Error;
-use crate::generated::types::{mln_canonical_tile_id, mln_edge_insets, mln_lat_lng, mln_screen_point};
+use crate::generated::types::{
+    mln_canonical_tile_id, mln_edge_insets, mln_lat_lng, mln_lat_lng_bounds, mln_screen_point,
+};
+use crate::parse_thread;
 
 /// A coordinate with a finite latitude from -90 to 90 and a finite longitude,
 /// which keeps the copy of the world that the longitude names.
@@ -39,6 +44,38 @@ pub(crate) unsafe fn lat_lngs(coordinates: *const mln_lat_lng, count: usize) -> 
     // SAFETY: non-null, and the caller's contract.
     let coordinates = unsafe { core::slice::from_raw_parts(coordinates, count) };
     coordinates.iter().copied().map(lat_lng).collect()
+}
+
+/// Bounds whose corners are coordinates, with the southwest corner south and
+/// west of the northeast one.
+pub(crate) fn lat_lng_bounds(bounds: mln_lat_lng_bounds) -> Result<LatLngBounds, Error> {
+    let (southwest, northeast) = (lat_lng(bounds.southwest)?, lat_lng(bounds.northeast)?);
+    if southwest.latitude() > northeast.latitude() || southwest.longitude() > northeast.longitude() {
+        return Err(Error::invalid_argument("bounds southwest must be less than or equal to northeast"));
+    }
+    Ok(LatLngBounds::hull(southwest, northeast))
+}
+
+pub(crate) fn from_lat_lng_bounds(bounds: LatLngBounds) -> mln_lat_lng_bounds {
+    mln_lat_lng_bounds { southwest: from_lat_lng(bounds.southwest()), northeast: from_lat_lng(bounds.northeast()) }
+}
+
+/// The GeoJSON geometry object that `json` holds, parsed on the parse
+/// thread. `name` names it in diagnostics.
+pub(crate) fn geometry(json: &str, name: &'static str) -> Result<Geometry<f64>, Error> {
+    if json.is_empty() {
+        return Err(Error::invalid_argument(format!("{name} must not be empty")));
+    }
+    let json = json.to_owned();
+    parse_thread::run(move || {
+        let document = serde_json::from_str(&json)
+            .map_err(|error| Error::invalid_argument(format!("{name} is not valid JSON: {error}")))?;
+        match geojson::convert(&document) {
+            Ok(geojson::GeoJSON::Geometry(geometry)) => Ok(geometry),
+            Ok(_) => Err(Error::invalid_argument(format!("{name} must contain one GeoJSON Geometry"))),
+            Err(error) => Err(Error::invalid_argument(format!("{name} is invalid: {}", error.message()))),
+        }
+    })?
 }
 
 /// A screen point with finite members.
@@ -110,6 +147,29 @@ mod tests {
         for (latitude, longitude) in [(90.5, 0.0), (f64::NAN, 0.0), (0.0, f64::INFINITY)] {
             let error = lat_lng(mln_lat_lng { latitude, longitude }).unwrap_err();
             assert!(error.message().contains("within [-90, 90]"), "{error}");
+        }
+    }
+
+    #[test]
+    fn bounds_run_from_southwest_to_northeast() {
+        let corner = |latitude, longitude| mln_lat_lng { latitude, longitude };
+        let bounds = lat_lng_bounds(mln_lat_lng_bounds { southwest: corner(-1.0, -2.0), northeast: corner(3.0, 4.0) });
+        assert_eq!(from_lat_lng_bounds(bounds.unwrap()).northeast.longitude, 4.0);
+        let inverted = mln_lat_lng_bounds { southwest: corner(3.0, -2.0), northeast: corner(-1.0, 4.0) };
+        assert!(lat_lng_bounds(inverted).unwrap_err().message().contains("southwest"));
+    }
+
+    #[test]
+    fn a_geometry_is_one_geojson_geometry() {
+        let line = geometry(r#"{"type":"LineString","coordinates":[[1,2],[3,4]]}"#, "geometry").unwrap();
+        assert!(matches!(line, Geometry::LineString(points) if points.len() == 2));
+        for (json, expected) in [
+            ("", "geometry must not be empty"),
+            (r#"{"type":"Point""#, "geometry is not valid JSON"),
+            (r#"{"type":"Feature","geometry":null,"properties":{}}"#, "geometry must contain one GeoJSON Geometry"),
+        ] {
+            let message = geometry(json, "geometry").unwrap_err().message().to_owned();
+            assert!(message.starts_with(expected), "{message}");
         }
     }
 

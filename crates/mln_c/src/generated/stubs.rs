@@ -319,17 +319,6 @@ pub unsafe extern "C" fn mln_map_add_style_source_json(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_apply_camera_delta(
-    map: mln_map,
-    delta: *const mln_camera_delta,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_apply_camera_delta")
-    }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_attach_android_hardware_buffer_ring(
     map: mln_map,
     descriptor: *const mln_android_hardware_buffer_ring_descriptor,
@@ -575,129 +564,6 @@ pub unsafe extern "C" fn mln_map_attach_win32_window(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_camera_for_geometry(
-    map: mln_map,
-    geometry: mln_buffer_view,
-    fit_options: *const mln_camera_fit_options,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_camera_for_geometry")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_camera_for_lat_lng_bounds(
-    map: mln_map,
-    bounds: mln_lat_lng_bounds,
-    fit_options: *const mln_camera_fit_options,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_map_camera_for_lat_lng_bounds",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_camera_for_lat_lngs(
-    map: mln_map,
-    coordinates: *const mln_lat_lng,
-    coordinate_count: usize,
-    fit_options: *const mln_camera_fit_options,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_camera_for_lat_lngs")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_cancel_camera_transitions(
-    map: mln_map,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_map_cancel_camera_transitions",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_cancel_camera_transitions_with_id(
-    map: mln_map,
-    transition_id: u64,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_map_cancel_camera_transitions_with_id",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_dump_debug_logs(
-    map: mln_map,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_dump_debug_logs") }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_fit_camera_to_geometry(
-    map: mln_map,
-    geometry: mln_buffer_view,
-    update: *const mln_camera_fit_update,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_fit_camera_to_geometry")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_fit_camera_to_lat_lng_bounds(
-    map: mln_map,
-    bounds: mln_lat_lng_bounds,
-    update: *const mln_camera_fit_update,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_map_fit_camera_to_lat_lng_bounds",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_fit_camera_to_lat_lngs(
-    map: mln_map,
-    coordinates: *const mln_lat_lng,
-    coordinate_count: usize,
-    update: *const mln_camera_fit_update,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_fit_camera_to_lat_lngs")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_get_camera(
-    map: mln_map,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_get_camera") }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_get_global_state(
     map: mln_map,
     completion: *const mln_completion,
@@ -860,20 +726,6 @@ pub unsafe extern "C" fn mln_map_invalidate_custom_vector_source_tile(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_lat_lng_bounds_for_camera(
-    map: mln_map,
-    camera: *const mln_camera_options,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_map_lat_lng_bounds_for_camera",
-        )
-    }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_list_style_layers(
     map: mln_map,
     completion: *const mln_completion,
@@ -947,15 +799,6 @@ pub unsafe extern "C" fn mln_map_request_still_image(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_set_bounds(
-    map: mln_map,
-    options: *const mln_bound_options,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_set_bounds") }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_set_custom_geometry_source_tile_data(
     map: mln_map,
     source_id: mln_buffer_view,
@@ -1018,26 +861,6 @@ pub unsafe extern "C" fn mln_map_set_custom_vector_source_tile_error(
             out_diagnostic,
             "mln_map_set_custom_vector_source_tile_error",
         )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_set_debug_flags(
-    map: mln_map,
-    flags: mln_map_debug_flags,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_set_debug_flags") }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_set_free_camera_options(
-    map: mln_map,
-    options: *const mln_free_camera_options,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_set_free_camera_options")
     }
 }
 #[unsafe(no_mangle)]
@@ -1138,31 +961,6 @@ pub unsafe extern "C" fn mln_map_set_image_source_url(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_set_projection_mode(
-    map: mln_map,
-    options: *const mln_projection_mode_options,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_set_projection_mode")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_set_rendering_stats_view_enabled(
-    map: mln_map,
-    enabled: bool,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_map_set_rendering_stats_view_enabled",
-        )
-    }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_set_style_image(
     map: mln_map,
     image_id: mln_buffer_view,
@@ -1243,35 +1041,6 @@ pub unsafe extern "C" fn mln_map_set_style_transition_options(
             "mln_map_set_style_transition_options",
         )
     }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_set_tile_options(
-    map: mln_map,
-    options: *const mln_map_tile_options,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_set_tile_options") }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_set_viewport_options(
-    map: mln_map,
-    options: *const mln_map_viewport_options,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_set_viewport_options")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_update_camera(
-    map: mln_map,
-    update: *const mln_camera_update,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_update_camera") }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_offscreen_device_create(

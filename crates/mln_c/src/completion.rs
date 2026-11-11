@@ -53,6 +53,18 @@ impl CompletionValue for LentText {
     }
 }
 
+/// One C struct of the header's result type: `value` points to a copy of
+/// it.
+pub(crate) struct Plain<T>(pub(crate) T);
+
+impl<T: Send + 'static> CompletionValue for Plain<T> {
+    type Item = T;
+
+    fn lend<R>(&self, f: impl FnOnce(&[T]) -> R) -> R {
+        f(core::slice::from_ref(&self.0))
+    }
+}
+
 type Callback = unsafe extern "C" fn(*mut c_void, *const mln_completion_result);
 
 struct Sink {

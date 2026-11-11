@@ -62,7 +62,7 @@ fn generations(map: &::mln_runtime::Map, result: &Result<Applied, mln_util::Erro
 /// # Safety
 ///
 /// `completion` is null or valid for the header's use of it.
-unsafe fn command(
+pub(crate) unsafe fn command(
     map: mln_map,
     completion: *const mln_completion,
     send: impl FnOnce(&::mln_runtime::Map) -> Result<::mln_runtime::Completion<Applied>, mln_util::Error>,
@@ -84,7 +84,7 @@ unsafe fn command(
 /// # Safety
 ///
 /// `completion` is null or valid for the header's use of it.
-unsafe fn query<T: Send + 'static, V: CompletionValue>(
+pub(crate) unsafe fn query<T: Send + 'static, V: CompletionValue>(
     map: mln_map,
     completion: *const mln_completion,
     send: impl FnOnce(&::mln_runtime::Map) -> Result<::mln_runtime::Completion<T>, mln_util::Error>,
