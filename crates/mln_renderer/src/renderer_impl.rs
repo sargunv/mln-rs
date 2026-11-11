@@ -41,10 +41,10 @@ pub struct RendererImpl {
 impl RendererImpl {
     /// `Renderer::Impl(gfx::RendererBackend&, float pixelRatio,
     /// const std::optional<std::string>& localFontFamily)`.
-    pub fn new(backend: Rc<dyn RendererBackend>, pixel_ratio: f32) -> Self {
+    pub fn new(backend: Rc<dyn RendererBackend>, pixel_ratio: f32, local_font_family: Option<String>) -> Self {
         let background_layer_as_color = !backend.context_is_shared();
         RendererImpl {
-            orchestrator: RenderOrchestrator::new(background_layer_as_color),
+            orchestrator: RenderOrchestrator::new(background_layer_as_color, local_font_family),
             backend,
             observer: None,
             pixel_ratio,

@@ -31,17 +31,54 @@ pub trait LocalGlyphRasterizer {
     }
 }
 
-/// The platform/default `LocalGlyphRasterizer(const std::optional<std::string>&
-/// fontFamily)`, which refuses every glyph.
-#[derive(Clone, Debug, Default)]
+/// The platform's `LocalGlyphRasterizer(const std::optional<std::string>&
+/// fontFamily)`.
+///
+/// Natively it is platform/default's, which refuses every glyph. In the
+/// browser (wasm) it draws the glyphs that
+/// `allowsFixedWidthGlyphGeneration` accepts (CJK ideographs, kana, hangul
+/// and the like) with a canvas in `font_family`, a CSS font-family list, as
+/// MapLibre GL JS draws them in its `localIdeographFontFamily`; without a
+/// font family it refuses every glyph there too.
+#[derive(Debug, Default)]
 pub struct DefaultLocalGlyphRasterizer {
+    #[cfg(not(target_family = "wasm"))]
     _font_family: Option<String>,
+    #[cfg(target_family = "wasm")]
+    browser: Option<crate::browser_glyph_rasterizer::BrowserGlyphRasterizer>,
 }
 
 impl DefaultLocalGlyphRasterizer {
+    #[cfg(not(target_family = "wasm"))]
     pub fn new(font_family: Option<String>) -> Self {
         DefaultLocalGlyphRasterizer { _font_family: font_family }
     }
+
+    #[cfg(target_family = "wasm")]
+    pub fn new(font_family: Option<String>) -> Self {
+        DefaultLocalGlyphRasterizer {
+            browser: font_family.map(crate::browser_glyph_rasterizer::BrowserGlyphRasterizer::new),
+        }
+    }
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl LocalGlyphRasterizer for DefaultLocalGlyphRasterizer {}
+
+#[cfg(target_family = "wasm")]
+impl LocalGlyphRasterizer for DefaultLocalGlyphRasterizer {
+    fn can_rasterize_glyph(&self, _font_stack: &FontStack, glyph_id: GlyphID) -> bool {
+        // A font face's glyph ID is a glyph index in its font, not a
+        // codepoint.
+        self.browser.is_some()
+            && glyph_id.type_ == crate::glyph::GlyphIDType::FontPBF
+            && mln_util::i18n::allows_fixed_width_glyph_generation(glyph_id.code)
+    }
+
+    fn rasterize_glyph(&self, font_stack: &FontStack, glyph_id: GlyphID) -> Glyph {
+        match &self.browser {
+            Some(browser) => browser.rasterize_glyph(font_stack, glyph_id),
+            None => Glyph::default(),
+        }
+    }
+}

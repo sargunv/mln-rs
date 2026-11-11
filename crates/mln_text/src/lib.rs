@@ -7,6 +7,8 @@
 //! fonts bit-identically to HarfBuzz; harfbuzz_impl.rs says where it differs.
 
 pub mod bidi;
+#[cfg(target_family = "wasm")]
+mod browser_glyph_rasterizer;
 pub mod freetype;
 pub mod ft;
 pub mod glyph;

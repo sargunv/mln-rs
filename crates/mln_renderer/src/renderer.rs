@@ -22,9 +22,10 @@ pub struct Renderer {
 impl Renderer {
     /// `Renderer(gfx::RendererBackend&, float pixelRatio, const
     /// std::optional<std::string>& localFontFamily = std::nullopt)`.
-    // TODO(port): localFontFamily (glyph rasterization, M5).
-    pub fn new(backend: Rc<dyn RendererBackend>, pixel_ratio: f32) -> Self {
-        Renderer { impl_: Some(Box::new(RendererImpl::new(backend, pixel_ratio))) }
+    /// `local_font_family` is the platform's `LocalGlyphRasterizer`'s (see
+    /// `DefaultLocalGlyphRasterizer`).
+    pub fn new(backend: Rc<dyn RendererBackend>, pixel_ratio: f32, local_font_family: Option<String>) -> Self {
+        Renderer { impl_: Some(Box::new(RendererImpl::new(backend, pixel_ratio, local_font_family))) }
     }
 
     fn impl_ref(&self) -> &RendererImpl {

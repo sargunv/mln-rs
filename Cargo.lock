@@ -1649,6 +1649,7 @@ name = "mln-rs-text"
 version = "0.0.10"
 dependencies = [
  "harfrust",
+ "js-sys",
  "mln-rs-math",
  "mln-rs-protozero",
  "mln-rs-style-types",
@@ -1657,6 +1658,8 @@ dependencies = [
  "serde",
  "skrifa",
  "unicode-bidi",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
