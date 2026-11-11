@@ -17,6 +17,7 @@ use mln_text::glyph::{
     GlyphIDType, GlyphIDs, GlyphMap, GlyphMetrics, GlyphRange, HBShapeRequests,
     NON_IDEOGRAPH_GLYPH_RANGES_PER_FONT_STACK,
 };
+use mln_text::glyph_cache::GlyphCache;
 use mln_text::local_glyph_rasterizer::LocalGlyphRasterizer;
 use mln_text::tagged_string::font_stack_hash;
 use mln_util::exception::ExceptionPtr;
@@ -24,7 +25,7 @@ use mln_util::font_stack::FontStack;
 use mln_util::i18n;
 use mln_util::image::AlphaImage;
 use mln_util::size::Size;
-use mln_vec_map::VecMap;
+use mln_vec_map::{VecMap, VecSet};
 
 use super::glyph_manager_bitmaps::{SDF_BITMAP, STUB_BITMAP};
 use super::{SquelchLog, read_file};
@@ -56,6 +57,19 @@ struct KatakanaOnlyLocalGlyphRasterizer;
 impl LocalGlyphRasterizer for KatakanaOnlyLocalGlyphRasterizer {
     fn can_rasterize_glyph(&self, _font_stack: &FontStack, glyph_id: GlyphID) -> bool {
         glyph_id.code == 'テ' as u16
+    }
+
+    fn rasterize_glyph(&self, _font_stack: &FontStack, glyph_id: GlyphID) -> Glyph {
+        stub_glyph(glyph_id)
+    }
+}
+
+/// `LatinALocalGlyphRasterizer`.
+struct LatinALocalGlyphRasterizer;
+
+impl LocalGlyphRasterizer for LatinALocalGlyphRasterizer {
+    fn can_rasterize_glyph(&self, _font_stack: &FontStack, glyph_id: GlyphID) -> bool {
+        glyph_id == gid('a')
     }
 
     fn rasterize_glyph(&self, _font_stack: &FontStack, glyph_id: GlyphID) -> Glyph {
@@ -130,6 +144,13 @@ impl GlyphManagerTest {
         }
     }
 
+    /// `GlyphManagerTest(localGlyphRasterizer, glyphCache)`.
+    fn with_glyph_cache(local_glyph_rasterizer: Box<dyn LocalGlyphRasterizer>, glyph_cache: Arc<GlyphCache>) -> Self {
+        let mut test = Self::new();
+        test.glyph_manager = GlyphManager::with_glyph_cache(Some(local_glyph_rasterizer), glyph_cache);
+        test
+    }
+
     fn file_source(&self) -> Arc<dyn FileSource> {
         self.file_source.clone()
     }
@@ -151,6 +172,16 @@ impl GlyphManagerTest {
 
     fn end(&self) {
         self.run_loop.stop();
+    }
+
+    /// Loads `chars` of `font_stack` from the glyphs.pbf fixture.
+    fn load(&mut self, font_stack: FontStack, chars: &[char]) {
+        self.file_source.set_response(Kind::Glyphs, glyphs_response("test/fixtures/resources/glyphs.pbf"));
+        let run_loop = self.run_loop.clone();
+        *self.requestor.glyphs_available.borrow_mut() = Some(Rc::new(move |_: GlyphMap| run_loop.stop()));
+        let ids: GlyphIDs = chars.iter().map(|c| gid(*c)).collect();
+        let dependencies = GlyphDependencies { glyphs: VecMap::from([(font_stack, ids)]), shapes: Default::default() };
+        self.run("test/fixtures/resources/glyphs.pbf", dependencies);
     }
 }
 
@@ -264,6 +295,65 @@ fn loading_corrupted() {
 
     test.run("test/fixtures/resources/glyphs.pbf", dependencies(&['a', 'å']));
     assert!(called.get());
+}
+
+// gtest: GlyphManager.SharesParsedGlyphsBetweenManagersAndFontStacks
+#[test]
+fn shares_parsed_glyphs_between_managers_and_font_stacks() {
+    let cache = Arc::new(GlyphCache::new());
+    let load = |font_stack: &str| {
+        let mut test = GlyphManagerTest::with_glyph_cache(Box::new(StubLocalGlyphRasterizer), cache.clone());
+        let font_stack = vec![font_stack.to_owned()];
+        test.load(font_stack.clone(), &['a']);
+        test.glyph_manager.get_glyph(&font_stack, gid('a'))
+    };
+
+    let first = load("Test Stack");
+
+    assert!(Arc::ptr_eq(&first, &load("Other Stack")));
+}
+
+// gtest: GlyphManager.KeepsItsOwnGlyphsWithoutACache
+#[test]
+fn keeps_its_own_glyphs_without_a_cache() {
+    let load = || {
+        let mut test = GlyphManagerTest::new();
+        test.load(test_stack(), &['a']);
+        test.glyph_manager.get_glyph(&test_stack(), gid('a'))
+    };
+
+    let first = load();
+
+    assert!(!Arc::ptr_eq(&first, &load()));
+}
+
+// gtest: GlyphManager.ReleasesTheGlyphsOfEvictedFontStacks
+#[test]
+fn releases_the_glyphs_of_evicted_font_stacks() {
+    let cache = Arc::new(GlyphCache::new());
+    let mut test = GlyphManagerTest::with_glyph_cache(Box::new(StubLocalGlyphRasterizer), cache.clone());
+    test.load(test_stack(), &['a']);
+    assert_ne!(0, cache.size());
+
+    test.glyph_manager.evict(&VecSet::new());
+
+    assert_eq!(0, cache.size());
+}
+
+// gtest: GlyphManager.DoesNotKeepTheRangeGlyphsItDrawsLocally
+#[test]
+fn does_not_keep_the_range_glyphs_it_draws_locally() {
+    let loaded_glyphs = |rasterizer: Box<dyn LocalGlyphRasterizer>| {
+        let cache = Arc::new(GlyphCache::new());
+        let mut test = GlyphManagerTest::with_glyph_cache(rasterizer, cache.clone());
+        test.load(test_stack(), &['a', 'å']);
+        cache.size()
+    };
+
+    let all = loaded_glyphs(Box::new(StubLocalGlyphRasterizer));
+
+    // The fixture has 'a', the only glyph LatinALocalGlyphRasterizer draws.
+    assert_eq!(all - 1, loaded_glyphs(Box::new(LatinALocalGlyphRasterizer)));
 }
 
 // gtest: GlyphManager.LoadingCancel

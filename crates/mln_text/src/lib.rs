@@ -12,6 +12,7 @@ mod browser_glyph_rasterizer;
 pub mod freetype;
 pub mod ft;
 pub mod glyph;
+pub mod glyph_cache;
 pub mod glyph_pbf;
 pub mod harfbuzz;
 pub mod harfbuzz_impl;
@@ -34,6 +35,7 @@ pub use glyph::{
     Glyph, GlyphID, GlyphIDType, GlyphMap, GlyphMetrics, GlyphPosition, GlyphPositions, GlyphRange, PositionedGlyph,
     PositionedLine, Shaping, WritingModeType,
 };
+pub use glyph_cache::GlyphCache;
 pub use harfbuzz::{HBShapeAdjust, HBShaper};
 pub use shaping::{AnchorAlignment, PositionedIcon, get_anchor_justification, get_shaping};
 pub use tagged_string::{SectionOptions, TaggedString};

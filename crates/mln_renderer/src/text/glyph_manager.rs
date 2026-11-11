@@ -11,6 +11,11 @@
 // the ranges a request waits for and notifies when it becomes unique; the
 // port does the same with `Rc::strong_count`.
 //
+// Glyphs parsed from PBF ranges go through the `GlyphCache` the manager is
+// given (thread-safe, so renderers on other threads can share it), and each
+// range keeps its glyphs in one shared map; `Entry::glyphs` holds only the
+// local and HarfBuzz glyphs.
+//
 // Font faces (MLN_TEXT_SHAPING_HARFBUZZ): the style's "font-faces" are
 // fetched as font files (`Resource::fontFace`), or read from the bytes a
 // face holds (an app's fallback faces can), and shaped with the
@@ -34,6 +39,7 @@ use mln_text::glyph::{
     FontData, FontFaces, Glyph, GlyphDependencies, GlyphID, GlyphIDType, GlyphIDs, GlyphMap, GlyphRange, Glyphs,
     HBShapeRequests, get_glyph_range,
 };
+use mln_text::glyph_cache::{GlyphCache, GlyphCacheRange};
 use mln_text::glyph_pbf::parse_glyph_pbf;
 use mln_text::local_glyph_rasterizer::{DefaultLocalGlyphRasterizer, LocalGlyphRasterizer};
 use mln_text::tagged_string::font_stack_hash;
@@ -86,12 +92,27 @@ struct GlyphRequest {
     parsed: bool,
     req: Option<Box<dyn AsyncRequest>>,
     requestors: HashMap<GlyphRequestorKey, (Weak<dyn GlyphRequestor>, Rc<GlyphDependencies>)>,
+    glyphs: Option<Arc<GlyphCacheRange>>,
 }
 
 #[derive(Default)]
 struct Entry {
     ranges: VecMap<GlyphRange, GlyphRequest>,
+    /// Local and HarfBuzz glyphs. PBF glyphs are in the ranges.
     glyphs: BTreeMap<GlyphID, Immutable<Glyph>>,
+}
+
+impl Entry {
+    /// `findGlyph(entry, glyphID)`.
+    fn find_glyph(&self, glyph_id: GlyphID) -> Option<Immutable<Glyph>> {
+        if let Some(glyph) = self.glyphs.get(&glyph_id) {
+            return Some(glyph.clone());
+        }
+        if glyph_id.type_ != GlyphIDType::FontPBF {
+            return None;
+        }
+        self.ranges.get(&get_glyph_range(glyph_id))?.glyphs.as_ref()?.get(&glyph_id).cloned()
+    }
 }
 
 type Notification = (Weak<dyn GlyphRequestor>, GlyphMap, HBShapeRequests);
@@ -122,6 +143,7 @@ pub struct GlyphManager {
     entries: RefCell<HashMap<FontStack, Entry>>,
     observer: RefCell<Rc<dyn GlyphManagerObserver>>,
     local_glyph_rasterizer: Box<dyn LocalGlyphRasterizer>,
+    glyph_cache: Arc<GlyphCache>,
 
     // Shaping objects
     font_faces: RefCell<Option<Arc<FontFaces>>>,
@@ -137,15 +159,34 @@ pub struct GlyphManager {
 }
 
 impl GlyphManager {
-    /// `GlyphManager(std::unique_ptr<LocalGlyphRasterizer>)`.
+    /// `GlyphManager(std::unique_ptr<LocalGlyphRasterizer>)`: a manager
+    /// with a glyph cache of its own.
     pub fn new(local_glyph_rasterizer: Option<Box<dyn LocalGlyphRasterizer>>) -> Rc<GlyphManager> {
-        Self::with_font_face_engine(local_glyph_rasterizer, font_face_engine::font_face_engine())
+        Self::with_glyph_cache(local_glyph_rasterizer, Arc::default())
+    }
+
+    /// `GlyphManager(std::unique_ptr<LocalGlyphRasterizer>,
+    /// std::shared_ptr<GlyphCache>)`: managers given the same cache share
+    /// the glyphs they parse from glyph PBFs.
+    pub fn with_glyph_cache(
+        local_glyph_rasterizer: Option<Box<dyn LocalGlyphRasterizer>>,
+        glyph_cache: Arc<GlyphCache>,
+    ) -> Rc<GlyphManager> {
+        Self::with_cache_and_engine(local_glyph_rasterizer, glyph_cache, font_face_engine::font_face_engine())
     }
 
     /// A manager whose font faces load with `engine` instead of the one
     /// `set_font_face_engine` set.
     pub fn with_font_face_engine(
         local_glyph_rasterizer: Option<Box<dyn LocalGlyphRasterizer>>,
+        engine: Arc<dyn FontFaceEngine>,
+    ) -> Rc<GlyphManager> {
+        Self::with_cache_and_engine(local_glyph_rasterizer, Arc::default(), engine)
+    }
+
+    fn with_cache_and_engine(
+        local_glyph_rasterizer: Option<Box<dyn LocalGlyphRasterizer>>,
+        glyph_cache: Arc<GlyphCache>,
         engine: Arc<dyn FontFaceEngine>,
     ) -> Rc<GlyphManager> {
         let local_glyph_rasterizer =
@@ -156,6 +197,7 @@ impl GlyphManager {
             entries: RefCell::new(HashMap::new()),
             observer: RefCell::new(Rc::new(NullObserver)),
             local_glyph_rasterizer,
+            glyph_cache,
             font_faces: RefCell::new(None),
             engine,
             engine_prepared: Cell::new(false),
@@ -337,35 +379,39 @@ impl GlyphManager {
             let mut entries = self.entries.borrow_mut();
             let entry = entries.entry(font_stack.clone()).or_default();
 
+            let mut range_glyphs = None;
             if let Some(data) = &data {
                 let data = data.as_bytes();
-                let glyphs: Vec<Glyph> = if range.type_ == GlyphIDType::FontPBF {
-                    match parse_glyph_pbf(range, data) {
+                if range.type_ == GlyphIDType::FontPBF {
+                    let glyphs = match parse_glyph_pbf(range, data) {
                         Ok(glyphs) => glyphs,
                         Err(error) => {
                             drop(entries);
                             observer.on_glyphs_error(font_stack, range, RuntimeError::ptr(error.to_string()));
                             return;
                         }
+                    };
+                    let mut interned = GlyphCacheRange::new();
+                    for glyph in glyphs {
+                        let id = glyph.id;
+                        if !self.local_glyph_rasterizer.can_rasterize_glyph(font_stack, id) {
+                            interned.insert(id, self.glyph_cache.intern_glyph(glyph));
+                        }
                     }
-                } else {
-                    if self.load_hb_shaper(font_stack, range.type_, Arc::new(data.to_vec())) {
-                        vec![Glyph { id: GlyphID::with_type(0, range.type_), ..Glyph::default() }]
-                    } else {
-                        Vec::new()
-                    }
-                };
-
-                for glyph in glyphs {
-                    let id = glyph.id;
+                    range_glyphs = Some(self.glyph_cache.intern_range(interned));
+                } else if self.load_hb_shaper(font_stack, range.type_, Arc::new(data.to_vec())) {
+                    let id = GlyphID::with_type(0, range.type_);
                     if !self.local_glyph_rasterizer.can_rasterize_glyph(font_stack, id) {
-                        entry.glyphs.insert(id, Arc::new(glyph));
+                        entry.glyphs.insert(id, Arc::new(Glyph { id, ..Glyph::default() }));
                     }
                 }
             }
 
             let request = entry.ranges.entry(*range).or_default();
             request.parsed = true;
+            if range_glyphs.is_some() {
+                request.glyphs = range_glyphs;
+            }
             let requestors = std::mem::take(&mut request.requestors);
             // Release this range's references first, so a requestor's
             // dependencies are unique once all its ranges are parsed.
@@ -405,14 +451,7 @@ impl GlyphManager {
             let entry = entries.entry(font_stack.clone()).or_default();
 
             for glyph_id in glyph_ids {
-                match entry.glyphs.get(glyph_id) {
-                    Some(glyph) => {
-                        glyphs.entry(*glyph_id).or_insert_with(|| Some(glyph.clone()));
-                    }
-                    None => {
-                        glyphs.entry(*glyph_id).or_insert(None);
-                    }
-                }
+                glyphs.entry(*glyph_id).or_insert_with(|| entry.find_glyph(*glyph_id));
             }
         }
 
@@ -446,8 +485,8 @@ impl GlyphManager {
     pub fn get_glyph(&self, font_stack: &FontStack, glyph_id: GlyphID) -> Immutable<Glyph> {
         let mut entries = self.entries.borrow_mut();
         let entry = entries.entry(font_stack.clone()).or_default();
-        if let Some(glyph) = entry.glyphs.get(&glyph_id) {
-            return glyph.clone();
+        if let Some(glyph) = entry.find_glyph(glyph_id) {
+            return glyph;
         }
 
         if glyph_id.type_ != GlyphIDType::FontPBF {
@@ -587,7 +626,7 @@ impl GlyphManager {
 
     /// The glyph ids a requestor asked for (helper for tests).
     pub fn has_glyph(&self, font_stack: &FontStack, glyph_id: GlyphID) -> bool {
-        self.entries.borrow().get(font_stack).is_some_and(|entry| entry.glyphs.contains_key(&glyph_id))
+        self.entries.borrow().get(font_stack).is_some_and(|entry| entry.find_glyph(glyph_id).is_some())
     }
 }
 

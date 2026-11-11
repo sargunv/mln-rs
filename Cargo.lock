@@ -1387,6 +1387,7 @@ dependencies = [
  "mln-rs-storage",
  "mln-rs-style",
  "mln-rs-test-server",
+ "mln-rs-text",
  "mln-rs-util",
  "mln-rs-webgpu",
  "serde_json",

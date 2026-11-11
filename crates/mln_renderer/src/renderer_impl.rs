@@ -9,6 +9,7 @@ use mln_gfx::shaders::program_parameters::ProgramParameters;
 use mln_gfx::shaders::shader_defines::ID_GLOBAL_PAINT_PARAMS_UBO;
 use mln_gfx::{RenderPassDescriptor, RendererBackend, ScissorRect, ShaderRegistry};
 use mln_map_types::MapDebugOptions;
+use mln_text::GlyphCache;
 use mln_util::Color;
 
 use crate::paint_parameters::PaintParameters;
@@ -40,11 +41,17 @@ pub struct RendererImpl {
 
 impl RendererImpl {
     /// `Renderer::Impl(gfx::RendererBackend&, float pixelRatio,
-    /// const std::optional<std::string>& localFontFamily)`.
-    pub fn new(backend: Rc<dyn RendererBackend>, pixel_ratio: f32, local_font_family: Option<String>) -> Self {
+    /// const std::optional<std::string>& localFontFamily,
+    /// std::shared_ptr<GlyphCache>)`.
+    pub fn new(
+        backend: Rc<dyn RendererBackend>,
+        pixel_ratio: f32,
+        local_font_family: Option<String>,
+        glyph_cache: Arc<GlyphCache>,
+    ) -> Self {
         let background_layer_as_color = !backend.context_is_shared();
         RendererImpl {
-            orchestrator: RenderOrchestrator::new(background_layer_as_color, local_font_family),
+            orchestrator: RenderOrchestrator::new(background_layer_as_color, local_font_family, glyph_cache),
             backend,
             observer: None,
             pixel_ratio,

@@ -26,6 +26,7 @@ use mln_style::layer::layer_type_info;
 use mln_style::layer_properties::LayerProperties;
 use mln_style::map::zoom_history::ZoomHistory;
 use mln_style::{PropertyEvaluationParameters, TransitionOptions, TransitionParameters, image, layer, source};
+use mln_text::GlyphCache;
 use mln_text::local_glyph_rasterizer::DefaultLocalGlyphRasterizer;
 use mln_tile_id::OverscaledTileID;
 use mln_util::chrono::{Duration, TimePoint};
@@ -244,16 +245,24 @@ pub struct RenderOrchestrator {
 
 impl RenderOrchestrator {
     /// `RenderOrchestrator(bool backgroundLayerAsColor, TaggedScheduler&,
-    /// const std::optional<std::string>& localFontFamily)`.
+    /// const std::optional<std::string>& localFontFamily,
+    /// std::shared_ptr<GlyphCache>)`.
     // C++ gets the map's thread pool; the port uses the background pool
     // with its own tag.
-    pub fn new(background_layer_as_color: bool, local_font_family: Option<String>) -> Self {
+    pub fn new(
+        background_layer_as_color: bool,
+        local_font_family: Option<String>,
+        glyph_cache: Arc<GlyphCache>,
+    ) -> Self {
         let observer: SharedObserver = Rc::new(RefCell::new(None));
         // `imageManager->setObserver(this)`.
         let image_manager = ImageManager::create();
         image_manager.set_observer(Some(Rc::new(OrchestratorImageObserver { observer: observer.clone() })));
         // symbols: `glyphManager->setObserver(this)`.
-        let glyph_manager = GlyphManager::new(Some(Box::new(DefaultLocalGlyphRasterizer::new(local_font_family))));
+        let glyph_manager = GlyphManager::with_glyph_cache(
+            Some(Box::new(DefaultLocalGlyphRasterizer::new(local_font_family))),
+            glyph_cache,
+        );
         glyph_manager.set_observer(Some(Rc::new(OrchestratorGlyphObserver { observer: observer.clone() })));
         let thread_pool = TaggedScheduler::new(scheduler::get_background(), SimpleIdentity::new());
         RenderOrchestrator {

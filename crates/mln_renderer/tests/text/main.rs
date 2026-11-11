@@ -1,12 +1,13 @@
 // Ported gtests of test/text/*.test.cpp that need mln_renderer (GlyphManager,
-// SymbolLayout) or sit above mln_text (Formatted is mln_expression's), one
-// module per C++ file. The others are ported next to their code: bidi,
+// SymbolLayout), sit above mln_text (Formatted is mln_expression's) or read
+// its fixtures (GlyphCache), one module per C++ file. The others are ported next to their code: bidi,
 // tagged_string, glyph_pbf, language_tag and shaping in mln_text;
 // quads, get_anchors and cross_tile_symbol_index in mln_renderer::text;
 // local_glyph_rasterizer in mln_headless (it renders a map).
 
 mod calculate_tile_distances;
 mod formatted;
+mod glyph_cache;
 mod glyph_manager;
 mod glyph_manager_bitmaps;
 

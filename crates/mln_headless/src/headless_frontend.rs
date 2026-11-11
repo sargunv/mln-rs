@@ -14,6 +14,7 @@ use mln_gfx::headless_backend::HeadlessBackend as GfxHeadlessBackend;
 use mln_gfx::{BackendScope, ContextMode, RendererBackend, ScopeType, SwapBehaviour};
 use mln_map::{CameraOptions, Map, TransformState};
 use mln_renderer::{Renderer, RendererFrontend, RendererObserver, UpdateParameters};
+use mln_text::GlyphCache;
 use mln_util::image::PremultipliedImage;
 use mln_util::size::Size;
 use mln_webgpu::HeadlessBackend;
@@ -54,7 +55,8 @@ impl HeadlessFrontend {
     }
 
     /// `HeadlessFrontend(Size, float pixelRatio, SwapBehaviour, ContextMode,
-    /// localFontFamily, invalidateOnUpdate)`.
+    /// localFontFamily, invalidateOnUpdate)`: its renderer has a glyph cache
+    /// of its own.
     // TODO(port): localFontFamily.
     pub fn with_options(
         size: Size,
@@ -62,6 +64,21 @@ impl HeadlessFrontend {
         swap_behavior: SwapBehaviour,
         context_mode: ContextMode,
         invalidate_on_update: bool,
+    ) -> Self {
+        Self::with_glyph_cache(size, pixel_ratio, swap_behavior, context_mode, invalidate_on_update, Arc::default())
+    }
+
+    /// `HeadlessFrontend(Size, float pixelRatio, SwapBehaviour, ContextMode,
+    /// localFontFamily, invalidateOnUpdate, std::shared_ptr<GlyphCache>)`:
+    /// frontends given the same `GlyphCache` share the glyphs their
+    /// renderers parse from glyph PBFs, also across threads.
+    pub fn with_glyph_cache(
+        size: Size,
+        pixel_ratio: f32,
+        swap_behavior: SwapBehaviour,
+        context_mode: ContextMode,
+        invalidate_on_update: bool,
+        glyph_cache: Arc<GlyphCache>,
     ) -> Self {
         let backend = Rc::new(HeadlessBackend::new(physical_size(size, pixel_ratio), swap_behavior, context_mode));
         let renderer_backend: Rc<dyn RendererBackend> = backend.clone();
@@ -72,7 +89,7 @@ impl HeadlessFrontend {
             backend,
             async_invalidate: RefCell::new(None),
             invalidate_on_update,
-            renderer: RefCell::new(Some(Renderer::new(renderer_backend, pixel_ratio, None))),
+            renderer: RefCell::new(Some(Renderer::with_glyph_cache(renderer_backend, pixel_ratio, None, glyph_cache))),
             update_parameters: RefCell::new(None),
         });
         let weak: Weak<Shared> = Rc::downgrade(&shared);
