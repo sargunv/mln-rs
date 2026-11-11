@@ -405,6 +405,24 @@ fn a_resize_applies_while_a_command_group_holds_the_update() {
     wait(map.end_command_group());
 }
 
+#[test]
+fn work_sent_after_a_resize_waits_for_it() {
+    let runtime = runtime();
+    let map = red_map(&runtime);
+    let session = attach(&map);
+    let before = session.snapshot().unwrap().generation;
+    // The resize runs on the map's thread first, and the barrier waits for
+    // it to reach the session.
+    let open = hold_runtime(&map);
+    drop(session.resize(Size::new(96, 80)).unwrap());
+    let barrier = session.barrier().unwrap();
+    drop(open);
+    barrier.wait().unwrap();
+    let snapshot = session.snapshot().unwrap();
+    assert_eq!(Size::new(96, 80), snapshot.extent.size);
+    assert_eq!(before + 1, snapshot.generation);
+}
+
 // MARK: - Lifecycle
 
 #[test]
@@ -621,6 +639,15 @@ fn a_continuous_map_refuses_a_still_image() {
 }
 
 #[test]
+fn a_still_image_inside_a_command_group_fails() {
+    let runtime = runtime();
+    let map = map_in_mode(&runtime, MapMode::Static);
+    wait(map.begin_command_group());
+    assert_eq!(ErrorKind::InvalidState, wait_err(map.request_still_image()).kind);
+    wait(map.end_command_group());
+}
+
+#[test]
 fn map_release_cancels_the_pending_still_image() {
     let runtime = runtime();
     let map = map_in_mode(&runtime, MapMode::Static);
@@ -702,6 +729,18 @@ fn rendered_queries_select_by_geometry_and_layer() {
     assert_eq!(1, wait(session.query_rendered_features(line, RenderedQueryOptions::default())).len());
     let none = RenderedQueryOptions::new(Some(vec!["missing".into()]), None);
     assert!(wait(session.query_rendered_features(east, none)).is_empty());
+
+    // A box past every edge covers the whole target, and one outside it
+    // covers nothing.
+    let beyond = RenderedQueryGeometry::Box {
+        min: ScreenCoordinate::new(-4096.0, -4096.0),
+        max: ScreenCoordinate::new(4096.0, 4096.0),
+    };
+    let circles = RenderedQueryOptions::new(Some(vec!["circles".into()]), None);
+    assert_eq!(2, wait(session.query_rendered_features(beyond, circles)).len());
+    let outside =
+        RenderedQueryGeometry::Box { min: ScreenCoordinate::new(100.0, 0.0), max: ScreenCoordinate::new(200.0, 64.0) };
+    assert!(wait(session.query_rendered_features(outside, RenderedQueryOptions::default())).is_empty());
 
     let invalid =
         |geometry| session.query_rendered_features(geometry, RenderedQueryOptions::default()).unwrap_err().kind;

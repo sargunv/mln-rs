@@ -438,7 +438,8 @@ impl Map {
     /// Fails with [`ErrorKind::InvalidState`](mln_util::ErrorKind) for a
     /// continuous map. Completes with
     /// [`ErrorKind::InvalidState`](mln_util::ErrorKind) while another image
-    /// is on its way, [`ErrorKind::Native`](mln_util::ErrorKind) when the
+    /// is on its way or a command group is open,
+    /// [`ErrorKind::Native`](mln_util::ErrorKind) when the
     /// style or a resource that the image needs fails to load, and
     /// [`ErrorKind::Cancelled`](mln_util::ErrorKind) when the map is released
     /// first.
@@ -458,6 +459,11 @@ impl Map {
                 move |entry, outbox| {
                     if entry.pending_still.is_some() {
                         let error = Error::invalid_state("the map is rendering a still image already");
+                        return outbox.resolve(resolver, Err(error));
+                    }
+                    // The group holds back the update that the image needs.
+                    if entry.core.command_group_depth() > 0 {
+                        let error = Error::invalid_state("a still image can't render while a command group is open");
                         return outbox.resolve(resolver, Err(error));
                     }
                     let outcome = Rc::new(RefCell::new(None));

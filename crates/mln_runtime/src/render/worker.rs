@@ -65,6 +65,33 @@ pub(crate) fn exit() {
     drop(worker);
 }
 
+/// Work for the session's thread.
+pub(crate) type Task = Box<dyn FnOnce(&mut Worker, &mut Outbox) + Send>;
+
+/// Tells the session's thread that a resize sent to the map has landed:
+/// [`land`](Self::land) when the resize reaches the session, or on drop
+/// when it never does.
+pub(crate) struct ResizeLanding(Option<RunLoopHandle>);
+
+impl ResizeLanding {
+    pub(crate) fn new(run_loop: RunLoopHandle) -> Self {
+        ResizeLanding(Some(run_loop))
+    }
+
+    pub(crate) fn land(mut self, worker: &mut Worker, outbox: &mut Outbox) {
+        self.0 = None;
+        worker.resize_landed(outbox);
+    }
+}
+
+impl Drop for ResizeLanding {
+    fn drop(&mut self) {
+        if let Some(run_loop) = self.0.take() {
+            post(&run_loop, |worker, outbox| worker.resize_landed(outbox));
+        }
+    }
+}
+
 /// What a session's thread needs to build its renderer.
 pub(crate) struct Init {
     pub(crate) device: Option<OffscreenDevice>,
@@ -170,6 +197,10 @@ pub(crate) struct Worker {
     /// The sources of the last render.
     sources: Option<ImmutableVector<dyn source_impl::Impl>>,
     torn_down: bool,
+    /// Counts the resizes that landed, of those that the session sent.
+    resizes_landed: u64,
+    /// The work that waits for resizes to land, each with how many.
+    behind_resizes: VecDeque<(u64, Task)>,
 }
 
 fn target_lost() -> Error {
@@ -223,6 +254,8 @@ impl Worker {
             has_frame: false,
             sources: None,
             torn_down: false,
+            resizes_landed: 0,
+            behind_resizes: VecDeque::new(),
         }
     }
 
@@ -470,6 +503,30 @@ impl Worker {
 
     // MARK: - Work
 
+    /// Runs `task` once `resizes` of the session's resizes have landed, in
+    /// the order of the work that waits.
+    pub(crate) fn after_resizes(&mut self, resizes: u64, task: Task, outbox: &mut Outbox) {
+        if resizes <= self.resizes_landed && self.behind_resizes.is_empty() {
+            task(self, outbox);
+        } else {
+            self.behind_resizes.push_back((resizes, task));
+        }
+    }
+
+    fn resize_landed(&mut self, outbox: &mut Outbox) {
+        self.resizes_landed += 1;
+        while self.behind_resizes.front().is_some_and(|(resizes, _)| *resizes <= self.resizes_landed) {
+            if let Some((_, task)) = self.behind_resizes.pop_front() {
+                task(self, outbox);
+            }
+        }
+    }
+
+    /// The target's size in logical pixels.
+    pub(crate) fn size(&self) -> Size {
+        self.shared.state.lock_unpoisoned().size
+    }
+
     pub(crate) fn renderer(&mut self) -> Result<&mut Renderer, Error> {
         self.gfx.as_mut().map(|gfx| &mut gfx.renderer).ok_or_else(target_lost)
     }
@@ -513,9 +570,7 @@ impl Worker {
     pub(crate) fn read_texture(&mut self) -> Result<PremultipliedImage, Error> {
         let gfx = self.gfx.as_ref().ok_or_else(target_lost)?;
         if !self.has_frame {
-            return Err(Error::invalid_state(
-                "the render session hasn't rendered a frame since it attached or resized",
-            ));
+            return Err(Error::invalid_state("the render session has no rendered frame since it attached or resized"));
         }
         let _scope = gfx.scope();
         Ok(gfx.backend.read_still_image())
