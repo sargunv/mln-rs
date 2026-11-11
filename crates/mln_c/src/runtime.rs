@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use ::mln_runtime::{MapId, Runtime, RuntimeEvent, RuntimeOptions};
+use ::mln_runtime::{CacheDatabaseOperation, MapId, Runtime, RuntimeEvent, RuntimeOptions};
 use mln_storage::network_status::{NetworkStatus, Status};
 
 use crate::callback::Registration;
@@ -13,8 +13,10 @@ use crate::completion::{self, Generations, PendingCompletion};
 use crate::error::Error;
 use crate::events::EventBatch;
 use crate::generated::types::{
-    MLN_NETWORK_STATUS_OFFLINE, MLN_NETWORK_STATUS_ONLINE, mln_completion, mln_diagnostic, mln_network_status,
-    mln_runtime, mln_runtime_event_handler, mln_runtime_options, mln_status,
+    MLN_CACHE_DATABASE_OPERATION_CLEAR, MLN_CACHE_DATABASE_OPERATION_INVALIDATE, MLN_CACHE_DATABASE_OPERATION_PACK,
+    MLN_CACHE_DATABASE_OPERATION_RESET, MLN_NETWORK_STATUS_OFFLINE, MLN_NETWORK_STATUS_ONLINE,
+    mln_cache_database_operation, mln_completion, mln_diagnostic, mln_network_status, mln_runtime,
+    mln_runtime_event_handler, mln_runtime_options, mln_status,
 };
 use crate::handles::{self, HandleKind, HandleTable};
 use crate::{abi, buffer, lock};
@@ -205,6 +207,56 @@ pub unsafe extern "C" fn mln_runtime_clear_event_handler(
         // SAFETY: the caller's contract.
         let pending = unsafe { PendingCompletion::optional(completion) }?;
         complete_command(object.runtime.clear_event_handler(), pending)
+    })
+}
+
+/// `mln_runtime_run_cache_database_operation()`.
+///
+/// # Safety
+///
+/// Each pointer is null or valid for the header's use of it.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mln_runtime_run_cache_database_operation(
+    runtime: mln_runtime,
+    operation: mln_cache_database_operation,
+    completion: *const mln_completion,
+    out_diagnostic: *mut mln_diagnostic,
+) -> mln_status {
+    export!(out_diagnostic, {
+        let operation = match abi::enum_value(
+            operation,
+            MLN_CACHE_DATABASE_OPERATION_CLEAR..=MLN_CACHE_DATABASE_OPERATION_RESET,
+            "cache database operation",
+        )? {
+            MLN_CACHE_DATABASE_OPERATION_CLEAR => CacheDatabaseOperation::Clear,
+            MLN_CACHE_DATABASE_OPERATION_INVALIDATE => CacheDatabaseOperation::Invalidate,
+            MLN_CACHE_DATABASE_OPERATION_PACK => CacheDatabaseOperation::Pack,
+            _ => CacheDatabaseOperation::Reset,
+        };
+        let object = resolve(runtime)?;
+        // SAFETY: the caller's contract.
+        let pending = unsafe { PendingCompletion::new(completion) }?;
+        complete_command(object.runtime.run_cache_database_operation(operation), Some(pending))
+    })
+}
+
+/// `mln_runtime_set_maximum_ambient_cache_size()`.
+///
+/// # Safety
+///
+/// Each pointer is null or valid for the header's use of it.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mln_runtime_set_maximum_ambient_cache_size(
+    runtime: mln_runtime,
+    size: u64,
+    completion: *const mln_completion,
+    out_diagnostic: *mut mln_diagnostic,
+) -> mln_status {
+    export!(out_diagnostic, {
+        let object = resolve(runtime)?;
+        // SAFETY: the caller's contract.
+        let pending = unsafe { PendingCompletion::new(completion) }?;
+        complete_command(object.runtime.set_maximum_ambient_cache_size(size), Some(pending))
     })
 }
 

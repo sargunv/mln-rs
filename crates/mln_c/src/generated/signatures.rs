@@ -209,7 +209,50 @@ const _: unsafe extern "C" fn(
     *const mln_completion,
     *mut mln_diagnostic,
 ) -> mln_status = crate::map::mln_runtime_create_map;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    *const mln_offline_region_definition,
+    *const u8,
+    usize,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::offline::mln_runtime_create_offline_region;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    mln_offline_region_id,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::offline::mln_runtime_delete_offline_region;
 const _: unsafe extern "C" fn(mln_runtime, *mut mln_diagnostic) -> mln_status = crate::runtime::mln_runtime_dispose;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    mln_offline_region_id,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::offline::mln_runtime_get_offline_region;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    mln_offline_region_id,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::offline::mln_runtime_get_offline_region_status;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    mln_offline_region_id,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::offline::mln_runtime_invalidate_offline_region;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::offline::mln_runtime_list_offline_regions;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    mln_buffer_view,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::offline::mln_runtime_merge_offline_regions;
 const _: unsafe extern "C" fn(
     mln_runtime,
     *const mln_completion,
@@ -217,10 +260,44 @@ const _: unsafe extern "C" fn(
 ) -> mln_status = crate::runtime::mln_runtime_release;
 const _: unsafe extern "C" fn(
     mln_runtime,
+    mln_cache_database_operation,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::runtime::mln_runtime_run_cache_database_operation;
+const _: unsafe extern "C" fn(
+    mln_runtime,
     *const mln_runtime_event_handler,
     *const mln_completion,
     *mut mln_diagnostic,
 ) -> mln_status = crate::runtime::mln_runtime_set_event_handler;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    u64,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::runtime::mln_runtime_set_maximum_ambient_cache_size;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    mln_offline_region_id,
+    mln_offline_region_download_state,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::offline::mln_runtime_set_offline_region_download_state;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    mln_offline_region_id,
+    mln_runtime_event_flags,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::offline::mln_runtime_set_offline_region_observed;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    mln_offline_region_id,
+    *const u8,
+    usize,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::offline::mln_runtime_update_offline_region_metadata;
 const _: unsafe extern "C" fn(
     mln_buffer_view,
     *const mln_style_expression_options,

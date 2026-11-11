@@ -1883,116 +1883,6 @@ pub unsafe extern "C" fn mln_runtime_clear_resource_transform(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_create_offline_region(
-    runtime: mln_runtime,
-    definition: *const mln_offline_region_definition,
-    metadata: *const u8,
-    metadata_size: usize,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_create_offline_region",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_delete_offline_region(
-    runtime: mln_runtime,
-    region_id: mln_offline_region_id,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_delete_offline_region",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_get_offline_region(
-    runtime: mln_runtime,
-    region_id: mln_offline_region_id,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_runtime_get_offline_region")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_get_offline_region_status(
-    runtime: mln_runtime,
-    region_id: mln_offline_region_id,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_get_offline_region_status",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_invalidate_offline_region(
-    runtime: mln_runtime,
-    region_id: mln_offline_region_id,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_invalidate_offline_region",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_list_offline_regions(
-    runtime: mln_runtime,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_list_offline_regions",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_merge_offline_regions(
-    runtime: mln_runtime,
-    side_database_path: mln_buffer_view,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_merge_offline_regions",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_run_cache_database_operation(
-    runtime: mln_runtime,
-    operation: mln_cache_database_operation,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_run_cache_database_operation",
-        )
-    }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_runtime_set_http_header_transform(
     runtime: mln_runtime,
     transform: *const mln_http_header_transform,
@@ -2003,50 +1893,6 @@ pub unsafe extern "C" fn mln_runtime_set_http_header_transform(
         crate::diagnostic::unsupported(
             out_diagnostic,
             "mln_runtime_set_http_header_transform",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_set_maximum_ambient_cache_size(
-    runtime: mln_runtime,
-    size: u64,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_set_maximum_ambient_cache_size",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_set_offline_region_download_state(
-    runtime: mln_runtime,
-    region_id: mln_offline_region_id,
-    state: mln_offline_region_download_state,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_set_offline_region_download_state",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_set_offline_region_observed(
-    runtime: mln_runtime,
-    region_id: mln_offline_region_id,
-    events: mln_runtime_event_flags,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_set_offline_region_observed",
         )
     }
 }
@@ -2075,22 +1921,6 @@ pub unsafe extern "C" fn mln_runtime_set_resource_transform(
         crate::diagnostic::unsupported(
             out_diagnostic,
             "mln_runtime_set_resource_transform",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_update_offline_region_metadata(
-    runtime: mln_runtime,
-    region_id: mln_offline_region_id,
-    metadata: *const u8,
-    metadata_size: usize,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_update_offline_region_metadata",
         )
     }
 }
