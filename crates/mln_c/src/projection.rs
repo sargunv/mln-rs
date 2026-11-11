@@ -14,8 +14,9 @@ use crate::generated::types::{
     MLN_CONSTRAIN_MODE_HEIGHT_ONLY, MLN_CONSTRAIN_MODE_NONE, MLN_CONSTRAIN_MODE_SCREEN,
     MLN_CONSTRAIN_MODE_WIDTH_AND_HEIGHT, MLN_NORTH_ORIENTATION_DOWN, MLN_NORTH_ORIENTATION_LEFT,
     MLN_NORTH_ORIENTATION_RIGHT, MLN_NORTH_ORIENTATION_UP, MLN_VIEWPORT_MODE_DEFAULT, MLN_VIEWPORT_MODE_FLIPPED_Y,
-    mln_camera, mln_camera_options, mln_diagnostic, mln_lat_lng, mln_map_projection, mln_map_projection_camera_result,
-    mln_map_view, mln_projected_meters, mln_screen_point, mln_status,
+    mln_camera, mln_camera_options, mln_diagnostic, mln_lat_lng, mln_logical_extent, mln_map_projection,
+    mln_map_projection_camera_result, mln_map_view, mln_map_viewport, mln_projected_meters, mln_projection_mode,
+    mln_screen_point, mln_status,
 };
 use crate::handles::{self, HandleKind, HandleTable};
 use crate::{abi, camera, geo, lock};
@@ -92,6 +93,45 @@ fn map_view(view: &mln_map_view) -> Result<MapView, Error> {
             frustum_offset: geo::edge_insets(viewport.frustum_offset, "view frustum offset")?,
         },
     })
+}
+
+/// The `mln_map_view` of a map's view.
+pub(crate) fn from_map_view(view: &MapView) -> mln_map_view {
+    let viewport = &view.viewport;
+    let mode = &view.projection_mode;
+    mln_map_view {
+        size: size_of::<mln_map_view>() as u32,
+        camera: camera::from_camera(view.camera),
+        extent: mln_logical_extent {
+            width: view.extent.size.width,
+            height: view.extent.size.height,
+            scale_factor: view.extent.scale_factor,
+        },
+        projection_mode: mln_projection_mode {
+            axonometric: mode.axonometric.unwrap_or_default(),
+            x_skew: mode.x_skew.unwrap_or_default(),
+            y_skew: mode.y_skew.unwrap_or_default(),
+        },
+        viewport: mln_map_viewport {
+            north_orientation: match viewport.north_orientation {
+                NorthOrientation::Upwards => MLN_NORTH_ORIENTATION_UP,
+                NorthOrientation::Rightwards => MLN_NORTH_ORIENTATION_RIGHT,
+                NorthOrientation::Downwards => MLN_NORTH_ORIENTATION_DOWN,
+                NorthOrientation::Leftwards => MLN_NORTH_ORIENTATION_LEFT,
+            },
+            constrain_mode: match viewport.constrain_mode {
+                ConstrainMode::None => MLN_CONSTRAIN_MODE_NONE,
+                ConstrainMode::HeightOnly => MLN_CONSTRAIN_MODE_HEIGHT_ONLY,
+                ConstrainMode::WidthAndHeight => MLN_CONSTRAIN_MODE_WIDTH_AND_HEIGHT,
+                ConstrainMode::Screen => MLN_CONSTRAIN_MODE_SCREEN,
+            },
+            viewport_mode: match viewport.viewport_mode {
+                ViewportMode::Default => MLN_VIEWPORT_MODE_DEFAULT,
+                ViewportMode::FlippedY => MLN_VIEWPORT_MODE_FLIPPED_Y,
+            },
+            frustum_offset: geo::from_edge_insets(viewport.frustum_offset),
+        },
+    }
 }
 
 /// `mln_map_projection_create()`.

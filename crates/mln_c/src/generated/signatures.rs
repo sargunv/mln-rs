@@ -37,6 +37,38 @@ const _: unsafe extern "C" fn(
     *mut mln_diagnostic,
 ) -> mln_status = crate::render_target::mln_logical_extent_physical_size;
 const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_begin_command_group;
+const _: unsafe extern "C" fn(mln_map, *mut mln_diagnostic) -> mln_status = crate::map::mln_map_dispose;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_end_command_group;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_feature_state_selector,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_get_feature_state;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_get_loaded_style_json;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *mut mln_map_snapshot,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_get_snapshot;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_get_style_url;
+const _: unsafe extern "C" fn(
     *const mln_map_view,
     *mut mln_map_projection,
     *mut mln_diagnostic,
@@ -98,6 +130,53 @@ const _: unsafe extern "C" fn(
     *mut mln_diagnostic,
 ) -> mln_status = crate::projection::mln_map_projection_set_camera;
 const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_release;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_feature_state_selector,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_remove_feature_state;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_request_repaint;
+const _: unsafe extern "C" fn(
+    mln_map,
+    mln_logical_size,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_resize;
+const _: unsafe extern "C" fn(
+    mln_map,
+    mln_runtime_event_flags,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_set_event_mask;
+const _: unsafe extern "C" fn(
+    mln_map,
+    *const mln_feature_state_selector,
+    mln_buffer_view,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_set_feature_state;
+const _: unsafe extern "C" fn(
+    mln_map,
+    mln_buffer_view,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_set_style_json;
+const _: unsafe extern "C" fn(
+    mln_map,
+    mln_buffer_view,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_set_style_url;
+const _: unsafe extern "C" fn(
     *mut mln_network_status,
     *mut mln_diagnostic,
 ) -> mln_status = crate::runtime::mln_network_get_status;
@@ -113,6 +192,35 @@ const _: unsafe extern "C" fn(
     *mut mln_projected_meters,
     *mut mln_diagnostic,
 ) -> mln_status = crate::projection::mln_projected_meters_for_lat_lng;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::runtime::mln_runtime_clear_event_handler;
+const _: unsafe extern "C" fn(
+    *const mln_runtime_options,
+    *mut mln_runtime,
+    *mut mln_diagnostic,
+) -> mln_status = crate::runtime::mln_runtime_create;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    *const mln_map_options,
+    *mut mln_map,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_runtime_create_map;
+const _: unsafe extern "C" fn(mln_runtime, *mut mln_diagnostic) -> mln_status = crate::runtime::mln_runtime_dispose;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::runtime::mln_runtime_release;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    *const mln_runtime_event_handler,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::runtime::mln_runtime_set_event_handler;
 const _: unsafe extern "C" fn(
     mln_buffer_view,
     *const mln_style_expression_options,

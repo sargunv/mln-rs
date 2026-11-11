@@ -575,16 +575,6 @@ pub unsafe extern "C" fn mln_map_attach_win32_window(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_begin_command_group(
-    map: mln_map,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_begin_command_group")
-    }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_camera_for_geometry(
     map: mln_map,
     geometry: mln_buffer_view,
@@ -652,29 +642,12 @@ pub unsafe extern "C" fn mln_map_cancel_camera_transitions_with_id(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_dispose(
-    map: mln_map,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_dispose") }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_dump_debug_logs(
     map: mln_map,
     completion: *const mln_completion,
     out_diagnostic: *mut mln_diagnostic,
 ) -> mln_status {
     unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_dump_debug_logs") }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_end_command_group(
-    map: mln_map,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_end_command_group")
-    }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_fit_camera_to_geometry(
@@ -725,17 +698,6 @@ pub unsafe extern "C" fn mln_map_get_camera(
     unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_get_camera") }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_get_feature_state(
-    map: mln_map,
-    selector: *const mln_feature_state_selector,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_get_feature_state")
-    }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_get_global_state(
     map: mln_map,
     completion: *const mln_completion,
@@ -756,24 +718,6 @@ pub unsafe extern "C" fn mln_map_get_image_source_coordinates(
             "mln_map_get_image_source_coordinates",
         )
     }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_get_loaded_style_json(
-    map: mln_map,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_get_loaded_style_json")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_get_snapshot(
-    map: mln_map,
-    out_snapshot: *mut mln_map_snapshot,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_get_snapshot") }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_get_style_image(
@@ -854,14 +798,6 @@ pub unsafe extern "C" fn mln_map_get_style_transition_options(
             "mln_map_get_style_transition_options",
         )
     }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_get_style_url(
-    map: mln_map,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_get_style_url") }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_invalidate_custom_geometry_source_region(
@@ -968,25 +904,6 @@ pub unsafe extern "C" fn mln_map_move_style_layer(
     unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_move_style_layer") }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_release(
-    map: mln_map,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_release") }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_remove_feature_state(
-    map: mln_map,
-    selector: *const mln_feature_state_selector,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_remove_feature_state")
-    }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_remove_style_image(
     map: mln_map,
     image_id: mln_buffer_view,
@@ -1020,14 +937,6 @@ pub unsafe extern "C" fn mln_map_remove_style_source(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_request_repaint(
-    map: mln_map,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_request_repaint") }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_request_still_image(
     map: mln_map,
     completion: *const mln_completion,
@@ -1036,15 +945,6 @@ pub unsafe extern "C" fn mln_map_request_still_image(
     unsafe {
         crate::diagnostic::unsupported(out_diagnostic, "mln_map_request_still_image")
     }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_resize(
-    map: mln_map,
-    logical_size: mln_logical_size,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_resize") }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_set_bounds(
@@ -1128,27 +1028,6 @@ pub unsafe extern "C" fn mln_map_set_debug_flags(
     out_diagnostic: *mut mln_diagnostic,
 ) -> mln_status {
     unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_set_debug_flags") }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_set_event_mask(
-    map: mln_map,
-    mask: mln_runtime_event_flags,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_set_event_mask") }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_set_feature_state(
-    map: mln_map,
-    selector: *const mln_feature_state_selector,
-    state: mln_buffer_view,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_set_feature_state")
-    }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_set_free_camera_options(
@@ -1295,15 +1174,6 @@ pub unsafe extern "C" fn mln_map_set_style_image(
     unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_set_style_image") }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_set_style_json(
-    map: mln_map,
-    json: mln_buffer_view,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_set_style_json") }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_set_style_layer_property(
     map: mln_map,
     layer_id: mln_buffer_view,
@@ -1373,15 +1243,6 @@ pub unsafe extern "C" fn mln_map_set_style_transition_options(
             "mln_map_set_style_transition_options",
         )
     }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_set_style_url(
-    map: mln_map,
-    url: mln_buffer_view,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_set_style_url") }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_set_tile_options(
@@ -1983,16 +1844,6 @@ pub unsafe extern "C" fn mln_resource_transform_request_release(
     request: mln_resource_transform_request,
 ) {}
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_clear_event_handler(
-    runtime: mln_runtime,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_runtime_clear_event_handler")
-    }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_runtime_clear_http_header_transform(
     runtime: mln_runtime,
     completion: *const mln_completion,
@@ -2032,24 +1883,6 @@ pub unsafe extern "C" fn mln_runtime_clear_resource_transform(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_create(
-    options: *const mln_runtime_options,
-    out_runtime: *mut mln_runtime,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_runtime_create") }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_create_map(
-    runtime: mln_runtime,
-    options: *const mln_map_options,
-    out_map: *mut mln_map,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_runtime_create_map") }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_runtime_create_offline_region(
     runtime: mln_runtime,
     definition: *const mln_offline_region_definition,
@@ -2078,13 +1911,6 @@ pub unsafe extern "C" fn mln_runtime_delete_offline_region(
             "mln_runtime_delete_offline_region",
         )
     }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_dispose(
-    runtime: mln_runtime,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_runtime_dispose") }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_runtime_get_offline_region(
@@ -2153,14 +1979,6 @@ pub unsafe extern "C" fn mln_runtime_merge_offline_regions(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_release(
-    runtime: mln_runtime,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_runtime_release") }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_runtime_run_cache_database_operation(
     runtime: mln_runtime,
     operation: mln_cache_database_operation,
@@ -2172,17 +1990,6 @@ pub unsafe extern "C" fn mln_runtime_run_cache_database_operation(
             out_diagnostic,
             "mln_runtime_run_cache_database_operation",
         )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_set_event_handler(
-    runtime: mln_runtime,
-    handler: *const mln_runtime_event_handler,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_runtime_set_event_handler")
     }
 }
 #[unsafe(no_mangle)]

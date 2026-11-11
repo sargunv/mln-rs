@@ -124,7 +124,6 @@ impl Fields {
 }
 
 /// Checks that an enum value is one that the headers define.
-#[cfg_attr(not(test), expect(dead_code, reason = "no implemented function takes an enum yet"))]
 pub(crate) fn enum_value(value: u32, valid: RangeInclusive<u32>, name: &str) -> Result<u32, Error> {
     if valid.contains(&value) {
         Ok(value)

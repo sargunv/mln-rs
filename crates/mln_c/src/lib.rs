@@ -12,7 +12,8 @@
 //! Each header's functions live in the module of its name. The modules they
 //! share hold the C-only rules: `export!` bodies, `handles`, struct versioning
 //! (`abi`), `buffer`s, `callback` registrations, `delivery` queues and
-//! `completion`s, the headers' geometry values (`geo`), and the
+//! `completion`s, the event batches that handlers receive (`events`), the
+//! headers' geometry values (`geo`), and the
 //! `parse_thread` that parses for callers that wait.
 
 // Every export takes raw pointers from C callers.
@@ -30,9 +31,11 @@ mod completion;
 mod delivery;
 mod diagnostic;
 mod error;
+mod events;
 mod geo;
 mod handles;
 mod logging;
+mod map;
 mod parse_thread;
 mod plugin;
 mod projection;

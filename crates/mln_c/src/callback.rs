@@ -73,7 +73,7 @@ pub(crate) struct Registration {
     release: mln_user_data_release,
     queue: Option<Arc<Queue>>,
     hold: Option<Hold>,
-    accepted: bool,
+    accepted: AtomicBool,
 }
 
 impl Registration {
@@ -95,13 +95,19 @@ impl Registration {
             (Some(queue), Some(_)) => queue.hold(user_data),
             _ => None,
         };
-        Ok(Self { user_data, release, queue, hold, accepted: false })
+        Ok(Self { user_data, release, queue, hold, accepted: AtomicBool::new(false) })
     }
 
     /// Takes ownership of the user data: dropping the registration from here
     /// on releases it.
-    pub(crate) fn accept(&mut self) {
-        self.accepted = true;
+    pub(crate) fn accept(&self) {
+        self.accepted.store(true, Ordering::Release);
+    }
+
+    /// Gives the user data back to the caller, for a call that fails after
+    /// it accepted: dropping the registration then releases nothing.
+    pub(crate) fn revoke(&self) {
+        self.accepted.store(false, Ordering::Release);
     }
 
     /// Runs `call` with the user data: on this thread now, or from the queue's
@@ -120,7 +126,7 @@ impl Registration {
 
 impl Drop for Registration {
     fn drop(&mut self) {
-        if self.accepted {
+        if *self.accepted.get_mut() {
             retire(self.user_data, self.release, self.queue.as_ref(), self.hold.take());
         }
     }
@@ -230,7 +236,7 @@ mod tests {
     #[test]
     fn a_direct_registration_calls_now_and_releases_once_on_drop() {
         let log = Log::new();
-        let mut registration =
+        let registration =
             Registration::new("handler", true, log.pointer('h'), Some(Log::release), handles::NULL).unwrap();
         registration.accept();
         assert!(registration.deliver(|user_data| Log::record(user_data, 'c')));
@@ -262,7 +268,7 @@ mod tests {
     fn a_queued_registration_runs_its_calls_then_its_release_in_dispatch() {
         let log = Log::new();
         let queue = queue();
-        let mut registration = Registration::new("handler", true, log.pointer('h'), Some(Log::release), queue).unwrap();
+        let registration = Registration::new("handler", true, log.pointer('h'), Some(Log::release), queue).unwrap();
         registration.accept();
         assert!(registration.deliver(|user_data| Log::record(user_data, 'c')));
         drop(registration);
@@ -276,7 +282,7 @@ mod tests {
     fn a_released_queue_reports_a_held_registration_once() {
         let log = Log::new();
         let (queue, _) = queue_with_abandon(Some(Log::abandon));
-        let mut registration = Registration::new("handler", true, log.pointer('h'), Some(Log::release), queue).unwrap();
+        let registration = Registration::new("handler", true, log.pointer('h'), Some(Log::release), queue).unwrap();
         registration.accept();
         mln_delivery_queue_release(queue);
         assert_eq!(log.take(), "ha");

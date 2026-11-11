@@ -6,8 +6,6 @@
 //! leaves `user_data` with the caller. An accepted [`Completion`] that is
 //! dropped unresolved delivers `MLN_STATUS_CANCELLED`.
 
-#![cfg_attr(not(test), expect(dead_code, reason = "no implemented function completes asynchronously yet"))]
-
 use core::ffi::c_void;
 use std::sync::Arc;
 
@@ -16,7 +14,7 @@ use crate::buffer::{LentText, Strided};
 use crate::callback::{self, UserData};
 use crate::delivery::{Call, Hold, Queue};
 use crate::error::{Error, ErrorKind};
-use crate::generated::types::{MLN_STATUS_OK, mln_completion, mln_completion_result};
+use crate::generated::types::{MLN_STATUS_OK, mln_buffer_view, mln_completion, mln_completion_result};
 
 /// The generations that a map command's completion reports.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -43,6 +41,15 @@ impl CompletionValue for () {
 
     fn lend<R>(&self, f: impl FnOnce(&[()]) -> R) -> R {
         f(&[])
+    }
+}
+
+/// Text: `value` is one `mln_buffer_view`, which ends before a NUL.
+impl CompletionValue for LentText {
+    type Item = mln_buffer_view;
+
+    fn lend<R>(&self, f: impl FnOnce(&[mln_buffer_view]) -> R) -> R {
+        f(&[self.view()])
     }
 }
 
@@ -171,9 +178,25 @@ impl Completion {
     }
 
     /// Takes the acceptance back, for a call that fails after it accepted.
+    #[cfg_attr(not(test), expect(dead_code, reason = "no implemented function fails after it accepts"))]
     pub(crate) fn revoke(mut self) -> Option<PendingCompletion> {
         self.0.take().map(PendingCompletion)
     }
+}
+
+/// Delivers the result of a runtime command to `sink` once it arrives:
+/// `finish` turns it into the completion's result and generations, on the
+/// thread that resolves it. Without a sink the result goes nowhere.
+pub(crate) fn forward<T: Send + 'static, V: CompletionValue>(
+    completion: mln_runtime::Completion<T>,
+    sink: Option<Completion>,
+    finish: impl FnOnce(Result<T, mln_util::Error>) -> (Result<V, Error>, Generations) + Send + 'static,
+) {
+    let Some(sink) = sink else { return };
+    completion.on_complete(move |result| {
+        let (result, generations) = finish(result);
+        sink.complete(result, generations);
+    });
 }
 
 impl Drop for Completion {

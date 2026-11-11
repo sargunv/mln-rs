@@ -171,7 +171,7 @@ pub unsafe extern "C" fn mln_log_set_callback(
         let Some(callback) = handler.callback else {
             return Err(Error::invalid_argument("log handler requires a callback"));
         };
-        let mut registration =
+        let registration =
             Registration::new("log handler", true, handler.user_data, handler.release_user_data, handler.queue)?;
         registration.accept();
         INSTALL.call_once(|| Log::set_observer(Box::new(Forwarder)));
