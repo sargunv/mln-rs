@@ -35,5 +35,5 @@ pub use render::{
     OffscreenDeviceOptions, RenderSession, RenderSessionCapabilities, RenderSessionSnapshot, RenderSessionState,
     RenderTarget, RenderedQueryGeometry, STILL_IMAGE_TOKEN, Wake,
 };
-pub use resources::{CacheDatabaseOperation, ResourceProvider, ResourceRequest};
+pub use resources::{CacheDatabaseOperation, ResourceProvider, ResourceRequest, is_managed_http_header};
 pub use runtime::{Runtime, RuntimeOptions};

@@ -4,6 +4,7 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use mln_actor::{ActorRef, Mailbox, scheduler};
@@ -19,6 +20,9 @@ use mln_util::sync::MutexExt;
 /// Serves a runtime's network requests in place of the library.
 ///
 /// A closure `Fn(ResourceRequest)` is a provider that serves every request.
+/// The library loads only `http`, `https` and the tile server's alias
+/// scheme, so without a resource transform, a request for another scheme
+/// that no provider serves fails at once.
 pub trait ResourceProvider: Send + Sync + 'static {
     /// Whether the provider serves a request for a resource of `kind` at
     /// `url`, the URL after the library expands any shorthand in the style's
@@ -60,6 +64,9 @@ pub enum CacheDatabaseOperation {
 #[derive(Default)]
 pub(crate) struct ResourceHooks {
     provider: Mutex<Option<Arc<dyn ResourceProvider>>>,
+    /// Whether a resource transform is set, which may rewrite a URL of any
+    /// scheme into one that the library loads.
+    transform_set: AtomicBool,
 }
 
 impl ResourceHooks {
@@ -74,6 +81,10 @@ impl ResourceHooks {
     fn provider(&self) -> Option<Arc<dyn ResourceProvider>> {
         self.provider.lock_unpoisoned().clone()
     }
+
+    pub(crate) fn set_transform_set(&self, set: bool) {
+        self.transform_set.store(set, Ordering::Release);
+    }
 }
 
 /// The runtime's network file source: the library's online file source,
@@ -83,20 +94,133 @@ pub(crate) struct ProviderFileSource {
     hooks: Arc<ResourceHooks>,
 }
 
+/// Who loads a request.
+enum Route {
+    /// The provider, with the resolved URL.
+    Provider(Arc<dyn ResourceProvider>, String),
+    /// The library. `declined` says whether a provider is set, which the
+    /// message of a request that the library can't load names.
+    Native { declined: bool },
+}
+
 impl ProviderFileSource {
     pub(crate) fn new(options: &ResourceOptions, hooks: Arc<ResourceHooks>) -> Self {
         ProviderFileSource { online: Arc::new(OnlineFileSource::new(options)), hooks }
     }
 
-    /// The provider and the resolved URL, when the provider serves the
-    /// request. No lock is held while the provider decides.
-    fn provider_for(&self, resource: &Resource) -> Option<(Arc<dyn ResourceProvider>, String)> {
+    /// Who loads `resource`. No lock is held while the provider decides.
+    fn route(&self, resource: &Resource) -> Route {
         if !resource.has_loading_method(mln_storage::LoadingMethod::Network) {
+            return Route::Native { declined: false };
+        }
+        let Some(provider) = self.hooks.provider() else {
+            return Route::Native { declined: false };
+        };
+        let url = resolved_url(&self.online.get_resource_options(), resource);
+        if provider.serves(resource.kind, &url) {
+            Route::Provider(provider, url)
+        } else {
+            Route::Native { declined: true }
+        }
+    }
+
+    fn native(&self) -> Native {
+        Native { online: self.online.clone(), hooks: self.hooks.clone() }
+    }
+}
+
+/// The library's own loading, which fails a request for a URL scheme that
+/// it can't load at once, rather than sending it to the network.
+#[derive(Clone)]
+struct Native {
+    online: Arc<dyn FileSource>,
+    hooks: Arc<ResourceHooks>,
+}
+
+impl Native {
+    fn request(&self, resource: &Resource, callback: Callback, declined: bool) -> Box<dyn AsyncRequest> {
+        match self.unsupported_scheme(&resource.url) {
+            Some(scheme) => respond_later(unsupported_scheme(scheme, &resource.url, declined), callback),
+            None => self.online.request(resource, callback),
+        }
+    }
+
+    /// The scheme of `url` when the online file source can't load it.
+    fn unsupported_scheme<'a>(&self, url: &'a str) -> Option<&'a str> {
+        if self.hooks.transform_set.load(Ordering::Acquire) {
             return None;
         }
-        let provider = self.hooks.provider()?;
-        let url = resolved_url(&self.online.get_resource_options(), resource);
-        provider.serves(resource.kind, &url).then_some((provider, url))
+        let scheme = url_scheme(url)?;
+        let tile_server = self.online.get_resource_options().tile_server_options();
+        let loadable = ["http", "https", tile_server.uri_scheme_alias()]
+            .iter()
+            .any(|known| !known.is_empty() && known.eq_ignore_ascii_case(scheme));
+        (!loadable).then_some(scheme)
+    }
+}
+
+/// The scheme of `url`, as RFC 3986 spells one: a letter, then letters,
+/// digits, `+`, `-` and `.`, before a colon.
+fn url_scheme(url: &str) -> Option<&str> {
+    let (scheme, _) = url.split_once(':')?;
+    let mut bytes = scheme.bytes();
+    let first = bytes.next()?;
+    (first.is_ascii_alphabetic() && bytes.all(|byte| byte.is_ascii_alphanumeric() || b"+-.".contains(&byte)))
+        .then_some(scheme)
+}
+
+/// `url` without its query, fragment and user information, so that a
+/// message never carries credentials.
+fn redacted_url(url: &str) -> String {
+    let end = url.find(['?', '#']).unwrap_or(url.len());
+    let mut url = url[..end].to_owned();
+    if let Some(separator) = url.find("://") {
+        let authority = separator + 3;
+        let authority_end = url[authority..].find('/').map_or(url.len(), |end| authority + end);
+        if let Some(at) = url[authority..authority_end].rfind('@') {
+            url.replace_range(authority..=authority + at, "");
+        }
+    }
+    url
+}
+
+fn unsupported_scheme(scheme: &str, url: &str, declined: bool) -> Response {
+    let advice = if declined {
+        "the registered resource provider declined this request; update it to serve this scheme"
+    } else {
+        "register a resource provider with mln_runtime_set_resource_provider() or Runtime::set_resource_provider to \
+         serve this scheme"
+    };
+    let message =
+        format!("unsupported URL scheme \"{scheme}\" for network request \"{}\"; {advice}", redacted_url(url));
+    // A reason that the library doesn't retry, since no retry can succeed.
+    Response { error: Some(Box::new(ResourceError::new(Reason::Other, message))), ..Response::default() }
+}
+
+/// A request that answers with `response` on the requesting thread, once
+/// the request has been returned.
+fn respond_later(response: Response, callback: Callback) -> Box<dyn AsyncRequest> {
+    let target = Rc::new(Immediate(RefCell::new(Some(callback))));
+    let mailbox = Mailbox::with_target(&scheduler::get_current(), target as Rc<dyn Any>);
+    ActorRef::<Immediate>::new(&mailbox).invoke(move |target| {
+        let callback = target.0.borrow_mut().take();
+        if let Some(mut callback) = callback {
+            callback(response);
+        }
+    });
+    Box::new(ImmediateRequest(mailbox))
+}
+
+struct Immediate(RefCell<Option<Callback>>);
+
+/// Dropping it cancels the answer.
+struct ImmediateRequest(Arc<Mailbox>);
+
+impl AsyncRequest for ImmediateRequest {}
+
+impl Drop for ImmediateRequest {
+    fn drop(&mut self) {
+        self.0.close();
     }
 }
 
@@ -118,14 +242,15 @@ fn resolved_url(options: &ResourceOptions, resource: &Resource) -> String {
 
 impl FileSource for ProviderFileSource {
     fn request(&self, resource: &Resource, callback: Callback) -> Box<dyn AsyncRequest> {
-        let Some((provider, resolved_url)) = self.provider_for(resource) else {
-            return self.online.request(resource, callback);
+        let (provider, resolved_url) = match self.route(resource) {
+            Route::Provider(provider, resolved_url) => (provider, resolved_url),
+            Route::Native { declined } => return self.native().request(resource, callback, declined),
         };
         let target = Rc::new(ProviderTarget {
             callback: RefCell::new(Some(callback)),
-            online: self.online.clone(),
+            native: self.native(),
             resource: resource.clone(),
-            native: RefCell::new(None),
+            request: RefCell::new(None),
         });
         let mailbox = Mailbox::with_target(&scheduler::get_current(), target as Rc<dyn Any>);
         let shared =
@@ -144,7 +269,7 @@ impl FileSource for ProviderFileSource {
     }
 
     fn can_request(&self, resource: &Resource) -> bool {
-        self.provider_for(resource).is_some() || self.online.can_request(resource)
+        matches!(self.route(resource), Route::Provider(..)) || self.online.can_request(resource)
     }
 
     fn pause(&self) {
@@ -183,14 +308,27 @@ impl FileSource for ProviderFileSource {
 /// The requesting side of a provider's request, on the requesting thread.
 struct ProviderTarget {
     callback: RefCell<Option<Callback>>,
-    online: Arc<dyn FileSource>,
+    native: Native,
     resource: Resource,
-    /// The online file source's request, once the provider passed through.
-    native: RefCell<Option<Box<dyn AsyncRequest>>>,
+    /// The library's request, once the provider passed through.
+    request: RefCell<Option<Box<dyn AsyncRequest>>>,
 }
 
 impl ProviderTarget {
-    fn respond(&self, response: Response) {
+    fn respond(&self, mut response: Response) {
+        // A revalidation withholds the cached copy from the requester until
+        // the answer, so a "not modified" answer delivers that copy, as the
+        // online file source's does.
+        if response.not_modified
+            && let Some(data) = &self.resource.prior_data
+        {
+            response.data = Some(data.clone());
+            response.not_modified = false;
+            response.modified = response.modified.or(self.resource.prior_modified);
+            if response.etag.is_none() {
+                response.etag.clone_from(&self.resource.prior_etag);
+            }
+        }
         let callback = self.callback.borrow_mut().take();
         if let Some(mut callback) = callback {
             callback(response);
@@ -200,8 +338,8 @@ impl ProviderTarget {
     fn pass_through(&self) {
         let callback = self.callback.borrow_mut().take();
         if let Some(callback) = callback {
-            let native = self.online.request(&self.resource, callback);
-            *self.native.borrow_mut() = Some(native);
+            let request = self.native.request(&self.resource, callback, true);
+            *self.request.borrow_mut() = Some(request);
         }
     }
 }
@@ -366,13 +504,18 @@ const MANAGED_HEADERS: [&str; 15] = [
     "user-agent",
 ];
 
+/// Whether the library or the platform manages the HTTP header `name`, in
+/// any letter case, so that a header transform can't set it.
+pub fn is_managed_http_header(name: &str) -> bool {
+    MANAGED_HEADERS.iter().any(|managed| managed.eq_ignore_ascii_case(name))
+}
+
 /// `headers` without the ones the library manages, and with each name once:
 /// a later value replaces an earlier one, whatever the letter case.
 pub(crate) fn sanitize_headers(headers: HttpHeaders) -> HttpHeaders {
     let mut sanitized: HttpHeaders = Vec::with_capacity(headers.len());
     for (name, value) in headers {
-        let lower = name.to_ascii_lowercase();
-        if MANAGED_HEADERS.contains(&lower.as_str()) {
+        if is_managed_http_header(&name) {
             mln_util::logging::Log::warning(
                 mln_util::logging::Event::HttpRequest,
                 format!("a header transform can't set the managed header {name}"),

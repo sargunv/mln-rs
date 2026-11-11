@@ -103,6 +103,69 @@ fn a_request_dropped_unanswered_fails() {
 }
 
 #[test]
+fn a_scheme_that_nothing_loads_fails_and_says_why() {
+    let runtime = runtime();
+    let map = map(&runtime);
+    let error = wait_err(map.set_style_url("jar://user:password@archive/style.json?access_token=secret#token"));
+    assert!(error.message.contains(r#"unsupported URL scheme "jar""#), "{}", error.message);
+    assert!(error.message.contains(r#""jar://archive/style.json""#), "{}", error.message);
+    assert!(error.message.contains("register a resource provider"), "{}", error.message);
+    for secret in ["user", "password", "access_token", "secret"] {
+        assert!(!error.message.contains(secret), "{}", error.message);
+    }
+
+    wait(runtime.set_resource_provider(|request: ResourceRequest| request.pass_through().unwrap()));
+    let error = wait_err(map.set_style_url("jar:file:/packaged/style.json"));
+    assert!(error.message.contains("the registered resource provider declined"), "{}", error.message);
+}
+
+#[test]
+fn a_provider_sees_the_url_that_an_alias_names() {
+    let runtime = runtime();
+    let (resolved, seen) = std::sync::mpsc::channel();
+    wait(runtime.set_resource_provider(move |request: ResourceRequest| {
+        resolved.send((request.resource().url.clone(), request.resolved_url().to_owned())).unwrap();
+        request.respond(style_response()).unwrap();
+    }));
+    let map = map(&runtime);
+    wait(map.set_style_url("maplibre://maps/streets"));
+    let (url, resolved) = seen.recv_timeout(support::TIMEOUT).unwrap();
+    assert_eq!("maplibre://maps/streets", url);
+    assert!(resolved.starts_with("https://"), "{resolved}");
+}
+
+#[test]
+fn a_not_modified_answer_delivers_the_cached_copy() {
+    let dir = TempDir::new();
+    let options = RuntimeOptions { cache_path: Some(dir.path("cache.db")), ..RuntimeOptions::default() };
+    let runtime = Runtime::new(options).unwrap();
+    let revalidations = Arc::new(AtomicUsize::new(0));
+    let counted = revalidations.clone();
+    wait(runtime.set_resource_provider(move |request: ResourceRequest| {
+        if request.resource().prior_data.is_some() {
+            counted.fetch_add(1, Ordering::SeqCst);
+            assert_eq!(Some("\"v1\""), request.resource().prior_etag.as_deref());
+            request.respond(Response { not_modified: true, ..Response::default() }).unwrap();
+        } else {
+            // A copy that the cache keeps, but must check before each use.
+            let response = Response {
+                must_revalidate: true,
+                etag: Some("\"v1\"".to_owned()),
+                expires: Some(mln_util::chrono::Timestamp::from_secs(1)),
+                ..style_response()
+            };
+            request.respond(response).unwrap();
+        }
+    }));
+    let first = map(&runtime);
+    wait(first.set_style_url("custom://cached"));
+    let second = map(&runtime);
+    wait(second.set_style_url("custom://cached"));
+    assert_eq!(EMPTY_STYLE, wait(second.loaded_style_json()));
+    assert_eq!(1, revalidations.load(Ordering::SeqCst));
+}
+
+#[test]
 fn a_cancelled_request_calls_back_and_takes_no_answer() {
     let runtime = runtime();
     let (requests, held) = std::sync::mpsc::channel();

@@ -16,6 +16,7 @@ use mln_storage::{DatabaseFileSource, FileSource, FileSourceManager, FileSourceT
 use mln_text::GlyphCache;
 use mln_util::error::Error;
 use mln_util::sync::MutexExt;
+use mln_util::tile_server_options::TileServerOptions;
 
 use crate::completion::{Completion, Resolver};
 use crate::event::{EventHandler, RuntimeEvent};
@@ -264,9 +265,11 @@ pub(crate) fn reply_on<T: Send + 'static, E: Into<Error>>(
 }
 
 /// The runtime's resource options, with the cache file created when there
-/// is one, so that a path the runtime can't use fails here.
+/// is one, so that a path the runtime can't use fails here. URLs of the
+/// `maplibre://` scheme name MapLibre's demo tile server.
 fn resource_options(options: &RuntimeOptions) -> Result<ResourceOptions, Error> {
-    let mut resource_options = ResourceOptions::default();
+    let mut resource_options =
+        ResourceOptions::default().with_tile_server_options(TileServerOptions::default_configuration());
     if let Some(asset_path) = &options.asset_path {
         resource_options = resource_options.with_asset_path(utf8(asset_path, "asset path")?);
     }
@@ -433,6 +436,7 @@ impl Runtime {
         let transform = ResourceTransform::new(Some(Arc::new(transform)));
         self.apply(move |core| {
             core.network()?.set_resource_transform(transform);
+            core.hooks.set_transform_set(true);
             Ok(())
         })
     }
@@ -441,6 +445,7 @@ impl Runtime {
     pub fn clear_resource_transform(&self) -> Result<Completion<()>, Error> {
         self.apply(move |core| {
             core.network()?.set_resource_transform(ResourceTransform::default());
+            core.hooks.set_transform_set(false);
             Ok(())
         })
     }
