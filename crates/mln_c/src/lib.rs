@@ -40,8 +40,11 @@ mod parse_thread;
 mod plugin;
 mod projection;
 mod render_target;
+mod resources;
 mod runtime;
 mod style_expression;
+mod transforms;
+mod url_rules;
 
 #[rustfmt::skip]
 #[allow(dead_code, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_variables, clippy::all)]

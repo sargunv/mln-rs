@@ -224,20 +224,6 @@ pub unsafe extern "C" fn mln_binding_render_session_abandon_at_exit(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_frame_pacer_release(pacer: mln_frame_pacer) {}
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_http_header_transform_response_set_header(
-    response: *mut mln_http_header_transform_response,
-    name: mln_buffer_view,
-    value: mln_buffer_view,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_http_header_transform_response_set_header",
-        )
-    }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_add_custom_geometry_source(
     map: mln_map,
     source_id: mln_buffer_view,
@@ -1763,126 +1749,6 @@ pub unsafe extern "C" fn mln_render_session_set_win32_window_target(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_resource_request_complete(
-    handle: mln_resource_request,
-    response: *const mln_resource_response,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_resource_request_complete")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_resource_request_is_cancelled(
-    handle: mln_resource_request,
-    out_cancelled: *mut bool,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_resource_request_is_cancelled",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_resource_request_pass_through(
-    handle: mln_resource_request,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_resource_request_pass_through",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_resource_request_release(handle: mln_resource_request) {}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_resource_request_set_cancel_callback(
-    handle: mln_resource_request,
-    handler: *const mln_resource_request_cancel_handler,
-    out_cancelled: *mut bool,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_resource_request_set_cancel_callback",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_resource_transform_request_complete(
-    request: mln_resource_transform_request,
-    url: mln_buffer_view,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_resource_transform_request_complete",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_resource_transform_request_fail(
-    request: mln_resource_transform_request,
-    error: *const mln_resource_transform_error,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_resource_transform_request_fail",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_resource_transform_request_release(
-    request: mln_resource_transform_request,
-) {}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_clear_http_header_transform(
-    runtime: mln_runtime,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_clear_http_header_transform",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_clear_resource_provider(
-    runtime: mln_runtime,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_clear_resource_provider",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_clear_resource_transform(
-    runtime: mln_runtime,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_clear_resource_transform",
-        )
-    }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_runtime_create_offline_region(
     runtime: mln_runtime,
     definition: *const mln_offline_region_definition,
@@ -1993,20 +1859,6 @@ pub unsafe extern "C" fn mln_runtime_run_cache_database_operation(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_set_http_header_transform(
-    runtime: mln_runtime,
-    transform: *const mln_http_header_transform,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_set_http_header_transform",
-        )
-    }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_runtime_set_maximum_ambient_cache_size(
     runtime: mln_runtime,
     size: u64,
@@ -2047,34 +1899,6 @@ pub unsafe extern "C" fn mln_runtime_set_offline_region_observed(
         crate::diagnostic::unsupported(
             out_diagnostic,
             "mln_runtime_set_offline_region_observed",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_set_resource_provider(
-    runtime: mln_runtime,
-    provider: *const mln_resource_provider,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_set_resource_provider",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_runtime_set_resource_transform(
-    runtime: mln_runtime,
-    transform: *const mln_resource_transform,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_runtime_set_resource_transform",
         )
     }
 }

@@ -124,7 +124,7 @@ pub unsafe extern "C" fn mln_runtime_dispose(runtime: mln_runtime, out_diagnosti
 }
 
 /// Sends a runtime command's result to its optional completion.
-fn complete_command(
+pub(crate) fn complete_command(
     command: Result<::mln_runtime::Completion<()>, mln_util::Error>,
     pending: Option<PendingCompletion>,
 ) -> Result<(), Error> {

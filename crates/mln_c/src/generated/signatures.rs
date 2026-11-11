@@ -17,6 +17,12 @@ const _: unsafe extern "C" fn(
 const _: unsafe extern "C" fn(mln_delivery_queue, *mut mln_diagnostic) -> mln_status = crate::delivery::mln_delivery_queue_dispatch;
 const _: unsafe extern "C" fn(mln_delivery_queue) = crate::delivery::mln_delivery_queue_release;
 const _: unsafe extern "C" fn(
+    *mut mln_http_header_transform_response,
+    mln_buffer_view,
+    mln_buffer_view,
+    *mut mln_diagnostic,
+) -> mln_status = crate::transforms::mln_http_header_transform_response_set_header;
+const _: unsafe extern "C" fn(
     mln_projected_meters,
     *mut mln_lat_lng,
     *mut mln_diagnostic,
@@ -193,10 +199,54 @@ const _: unsafe extern "C" fn(
     *mut mln_diagnostic,
 ) -> mln_status = crate::projection::mln_projected_meters_for_lat_lng;
 const _: unsafe extern "C" fn(
+    mln_resource_request,
+    *const mln_resource_response,
+    *mut mln_diagnostic,
+) -> mln_status = crate::resources::mln_resource_request_complete;
+const _: unsafe extern "C" fn(
+    mln_resource_request,
+    *mut bool,
+    *mut mln_diagnostic,
+) -> mln_status = crate::resources::mln_resource_request_is_cancelled;
+const _: unsafe extern "C" fn(mln_resource_request, *mut mln_diagnostic) -> mln_status = crate::resources::mln_resource_request_pass_through;
+const _: unsafe extern "C" fn(mln_resource_request) = crate::resources::mln_resource_request_release;
+const _: unsafe extern "C" fn(
+    mln_resource_request,
+    *const mln_resource_request_cancel_handler,
+    *mut bool,
+    *mut mln_diagnostic,
+) -> mln_status = crate::resources::mln_resource_request_set_cancel_callback;
+const _: unsafe extern "C" fn(
+    mln_resource_transform_request,
+    mln_buffer_view,
+    *mut mln_diagnostic,
+) -> mln_status = crate::transforms::mln_resource_transform_request_complete;
+const _: unsafe extern "C" fn(
+    mln_resource_transform_request,
+    *const mln_resource_transform_error,
+    *mut mln_diagnostic,
+) -> mln_status = crate::transforms::mln_resource_transform_request_fail;
+const _: unsafe extern "C" fn(mln_resource_transform_request) = crate::transforms::mln_resource_transform_request_release;
+const _: unsafe extern "C" fn(
     mln_runtime,
     *const mln_completion,
     *mut mln_diagnostic,
 ) -> mln_status = crate::runtime::mln_runtime_clear_event_handler;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::transforms::mln_runtime_clear_http_header_transform;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::resources::mln_runtime_clear_resource_provider;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::transforms::mln_runtime_clear_resource_transform;
 const _: unsafe extern "C" fn(
     *const mln_runtime_options,
     *mut mln_runtime,
@@ -221,6 +271,24 @@ const _: unsafe extern "C" fn(
     *const mln_completion,
     *mut mln_diagnostic,
 ) -> mln_status = crate::runtime::mln_runtime_set_event_handler;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    *const mln_http_header_transform,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::transforms::mln_runtime_set_http_header_transform;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    *const mln_resource_provider,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::resources::mln_runtime_set_resource_provider;
+const _: unsafe extern "C" fn(
+    mln_runtime,
+    *const mln_resource_transform,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::transforms::mln_runtime_set_resource_transform;
 const _: unsafe extern "C" fn(
     mln_buffer_view,
     *const mln_style_expression_options,
