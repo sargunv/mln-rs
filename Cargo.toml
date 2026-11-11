@@ -147,7 +147,7 @@ wasm-bindgen = { version = "=0.2.130" }
 wasm-bindgen-futures = { version = "0.4.80" }
 web-sys = { version = "0.3.107", features = [
     "Blob", "Headers", "ImageBitmap", "ImageData", "OffscreenCanvas", "OffscreenCanvasRenderingContext2d", "Request",
-    "RequestInit", "Response", "console",
+    "RequestInit", "Response", "TextMetrics", "console",
 ] }
 # std::time's clocks, which panic on wasm32-unknown-unknown (mln_util::time):
 # performance.now() and Date.now() there, std::time everywhere else.

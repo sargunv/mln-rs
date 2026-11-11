@@ -24,5 +24,10 @@ serde.workspace = true
 skrifa.workspace = true
 unicode-bidi.workspace = true
 
+[target.'cfg(target_family = "wasm")'.dependencies]
+js-sys.workspace = true
+wasm-bindgen.workspace = true
+web-sys.workspace = true
+
 [lints]
 workspace = true

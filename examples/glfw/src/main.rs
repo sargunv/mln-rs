@@ -238,7 +238,7 @@ fn main() {
     }
 
     let renderer_backend = view.get_renderer_backend();
-    let renderer = Renderer::new(renderer_backend.clone(), view.get_pixel_ratio());
+    let renderer = Renderer::new(renderer_backend.clone(), view.get_pixel_ratio(), None);
     let renderer_frontend = GLFWRendererFrontend::new(renderer, renderer_backend, view.shared());
     view.set_render_frontend(renderer_frontend.clone());
 

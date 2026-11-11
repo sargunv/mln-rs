@@ -72,7 +72,7 @@ impl HeadlessFrontend {
             backend,
             async_invalidate: RefCell::new(None),
             invalidate_on_update,
-            renderer: RefCell::new(Some(Renderer::new(renderer_backend, pixel_ratio))),
+            renderer: RefCell::new(Some(Renderer::new(renderer_backend, pixel_ratio, None))),
             update_parameters: RefCell::new(None),
         });
         let weak: Weak<Shared> = Rc::downgrade(&shared);

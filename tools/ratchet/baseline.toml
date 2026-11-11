@@ -233,11 +233,11 @@
 "crates/mln_renderer/src/layers/render_line_layer.rs" = 4
 "crates/mln_renderer/src/layers/render_symbol_layer.rs" = 1
 "crates/mln_renderer/src/render_layer.rs" = 3
-"crates/mln_renderer/src/render_orchestrator.rs" = 19
+"crates/mln_renderer/src/render_orchestrator.rs" = 18
 "crates/mln_renderer/src/render_source.rs" = 3
 "crates/mln_renderer/src/render_static_data.rs" = 2
 "crates/mln_renderer/src/render_tile.rs" = 1
-"crates/mln_renderer/src/renderer.rs" = 3
+"crates/mln_renderer/src/renderer.rs" = 2
 "crates/mln_renderer/src/renderer_frontend.rs" = 1
 "crates/mln_renderer/src/renderer_impl.rs" = 5
 "crates/mln_renderer/src/renderer_observer.rs" = 1

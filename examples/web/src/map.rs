@@ -223,7 +223,7 @@ impl WebMap {
         run_loop.set_waker(Some(Arc::new(wake_host)));
         scheduler.set_waker(Some(Arc::new(wake_host)));
         let renderer_backend: Rc<dyn RendererBackend> = backend.clone();
-        let mut renderer = Renderer::new(renderer_backend, pixel_ratio as f32);
+        let mut renderer = Renderer::new(renderer_backend, pixel_ratio as f32, None);
         let count = workers as usize;
         let transport = SerializingTransport::new(|_| Box::new(WebWorkers { count, post }));
         renderer.set_tile_worker_transport(transport.clone());
