@@ -15,6 +15,7 @@ use mln_gfx::{ContextMode, SwapBehaviour};
 use mln_headless::HeadlessFrontend;
 use mln_map::{CameraOptions, Map, MapLoadError, MapMode, MapObserver, MapOptions, RenderFrameStatus, RenderMode};
 use mln_storage::{ClientOptions, FileSource, FileSourceManager, FileSourceType, ResourceOptions};
+use mln_text::GlyphCache;
 use mln_util::geo::LatLng;
 use mln_util::image::PremultipliedImage;
 use mln_util::size::Size;
@@ -127,16 +128,23 @@ pub struct Scene {
 impl Scene {
     /// A map without a style; its GPU device is ready.
     pub fn new(size: Size, mode: Mode) -> Scene {
+        Self::with_glyph_cache(size, mode, Arc::default())
+    }
+
+    /// A map without a style whose renderer shares the glyphs it parses
+    /// with the other scenes given `glyph_cache`.
+    pub fn with_glyph_cache(size: Size, mode: Mode, glyph_cache: Arc<GlyphCache>) -> Scene {
         render_test::file_source::register_proxy_file_source();
         let cache = Path::new(env!("CARGO_MANIFEST_DIR")).join("../render-test/testdata/metrics/cache-style.db");
         let resource_options = ResourceOptions::default().with_cache_path(cache.display().to_string());
         let client_options = ClientOptions::default();
-        let frontend = HeadlessFrontend::with_options(
+        let frontend = HeadlessFrontend::with_glyph_cache(
             size,
             1.0,
             SwapBehaviour::NoFlush,
             ContextMode::Unique,
             mode != Mode::OnDemand,
+            glyph_cache,
         );
         let file_source = FileSourceManager::get().get_file_source(
             FileSourceType::ResourceLoader,

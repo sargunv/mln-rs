@@ -1190,6 +1190,7 @@ dependencies = [
  "mln-rs-pixelmatch",
  "mln-rs-render-test",
  "mln-rs-storage",
+ "mln-rs-text",
  "mln-rs-util",
  "mln-rs-webgpu",
  "serde",

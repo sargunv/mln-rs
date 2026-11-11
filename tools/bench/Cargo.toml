@@ -31,6 +31,7 @@ mln_map.workspace = true
 # render_test: naming it here would stop `mln-bench compare` building this
 # harness over commits from before mln_storage had the feature.
 mln_storage.workspace = true
+mln_text.workspace = true
 mln_util.workspace = true
 mln_webgpu.workspace = true
 pixelmatch.workspace = true

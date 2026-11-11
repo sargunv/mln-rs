@@ -2,10 +2,11 @@
 //! follow maplibre-native-ffi's of the same names, over the same data and
 //! cameras, so their numbers are comparable to the C++ core's.
 
-use std::sync::Barrier;
+use std::sync::{Arc, Barrier};
 use std::time::{Duration, Instant};
 
 use mln_map::RenderMode;
+use mln_text::GlyphCache;
 use mln_util::geo::LatLng;
 use mln_util::image::PremultipliedImage;
 use mln_util::size::Size;
@@ -153,10 +154,12 @@ fn load_style(cx: &Context, view: &View) -> Metrics {
 /// Renderers on threads of their own, as the render tests run many at
 /// once: each loads a real-world style on a new map and renders its first
 /// complete still through `HeadlessFrontend::render`, the threads taking
-/// the styles in turn. An iteration is every renderer's load
-/// and still; the GPU devices are set up before.
+/// the styles in turn. They share one glyph cache, as the maps of one
+/// process can. An iteration is every renderer's load and still; the GPU
+/// devices are set up before.
 fn load_concurrent(cx: &Context) -> Metrics {
     const RENDERERS: usize = 16;
+    let glyph_cache = Arc::new(GlyphCache::new());
     let mut meter = Meter::new();
     let mut last = None;
     for _ in 0..cx.iterations(5) {
@@ -168,8 +171,9 @@ fn load_concurrent(cx: &Context) -> Metrics {
                 .take(RENDERERS)
                 .map(|view| {
                     let ready = &ready;
+                    let glyph_cache = glyph_cache.clone();
                     scope.spawn(move || {
-                        let mut scene = Scene::new(REAL_WORLD_SIZE, Mode::Still);
+                        let mut scene = Scene::with_glyph_cache(REAL_WORLD_SIZE, Mode::Still, glyph_cache);
                         scene.jump(view.center(), view.zoom);
                         ready.wait();
                         scene.load_url(&view.style_url());
