@@ -22,7 +22,7 @@ use mln_gfx::{ContextMode, SwapBehaviour};
 use mln_map::transform::Transform;
 use mln_map::{CameraOptions, Map, MapLoadError, MapMode, MapObserver, MapOptions, TransformState};
 use mln_renderer::{ExceptionPtr, RenderMode, RendererFrontend, RendererObserver, RenderingStats, UpdateParameters};
-use mln_storage::{ClientOptions, ResourceOptions};
+use mln_storage::{FileSourceManager, ResourceOptions};
 use mln_util::exception::MisuseException;
 use mln_util::geo::{EdgeInsets, LatLng, LatLngBounds, ScreenCoordinate, WrapMode};
 use mln_util::image::PremultipliedImage;
@@ -251,12 +251,12 @@ pub struct MapSnapshotter {
 }
 
 impl MapSnapshotter {
-    /// `MapSnapshotter(size, pixelRatio, resourceOptions, clientOptions, observer)`.
+    /// `MapSnapshotter(size, pixelRatio, resourceOptions, observer)`, with
+    /// file sources of its own.
     pub fn with_observer(
         size: Size,
         pixel_ratio: f32,
         resource_options: &ResourceOptions,
-        client_options: &ClientOptions,
         observer: Rc<dyn MapSnapshotterObserver>,
     ) -> Result<Self, String> {
         let frontend = SnapshotterRendererFrontend::new(size, pixel_ratio);
@@ -264,8 +264,8 @@ impl MapSnapshotter {
             &frontend,
             Rc::new(SnapshotterMapObserver { observer }),
             MapOptions::new().with_map_mode(MapMode::Static).with_size(size).with_pixel_ratio(pixel_ratio),
+            &FileSourceManager::new(),
             resource_options,
-            client_options,
         )?));
 
         let render_still_callback: Rc<RefCell<Option<Callback>>> = Rc::new(RefCell::new(None));
@@ -333,15 +333,10 @@ impl MapSnapshotter {
         })
     }
 
-    /// `MapSnapshotter(size, pixelRatio, resourceOptions, clientOptions)`.
-    /// `Err` where the C++ Map constructor throws (an empty size).
-    pub fn new(
-        size: Size,
-        pixel_ratio: f32,
-        resource_options: &ResourceOptions,
-        client_options: &ClientOptions,
-    ) -> Result<Self, String> {
-        Self::with_observer(size, pixel_ratio, resource_options, client_options, Rc::new(NullMapSnapshotterObserver))
+    /// `MapSnapshotter(size, pixelRatio, resourceOptions)`. `Err` where the
+    /// C++ Map constructor throws (an empty size).
+    pub fn new(size: Size, pixel_ratio: f32, resource_options: &ResourceOptions) -> Result<Self, String> {
+        Self::with_observer(size, pixel_ratio, resource_options, Rc::new(NullMapSnapshotterObserver))
     }
 
     /// The map, for `getStyle()`: `snapshotter.map().get_style_mut()`.

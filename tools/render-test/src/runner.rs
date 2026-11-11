@@ -378,7 +378,6 @@ impl TestRunner {
         self_check: bool,
         output_path: PathBuf,
     ) -> Self {
-        crate::file_source::register_proxy_file_source();
         TestRunner {
             maps: HashMap::new(),
             manifest,

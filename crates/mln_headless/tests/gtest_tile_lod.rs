@@ -11,7 +11,7 @@ use geojson::{Feature, Geometry, Point};
 use mln_actor::RunLoop;
 use mln_headless::HeadlessFrontend;
 use mln_map::{CameraOptions, Map, MapDebugOptions, MapMode, MapOptions, NullMapObserver};
-use mln_storage::{ClientOptions, ResourceOptions};
+use mln_storage::{FileSourceManager, ResourceOptions};
 use mln_style::PropertyValue;
 use mln_style::layers::circle_layer::CircleLayer;
 use mln_style::sources::custom_geometry_source::{CustomGeometrySource, Options as CustomGeometrySourceOptions};
@@ -35,10 +35,10 @@ impl TileLODTest {
             &frontend,
             Rc::new(NullMapObserver),
             MapOptions::new().with_map_mode(MapMode::Static).with_size(frontend.get_size()),
+            &FileSourceManager::new(),
             &ResourceOptions::default()
                 .with_cache_path(":memory:")
                 .with_asset_path(cpp_root().join("test/fixtures/api/assets").to_str().unwrap()),
-            &ClientOptions::default(),
         )
         .unwrap();
         map.jump_to(camera_options);

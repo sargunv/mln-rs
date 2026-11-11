@@ -1,5 +1,4 @@
-// Ports test/storage/database_file_source.test.cpp. The tests take
-// `serial()`: they share the FileSourceManager's database file source.
+// Ports test/storage/database_file_source.test.cpp.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -11,8 +10,7 @@ use mln_actor::{RunLoop, Timer};
 use mln_util::chrono::Duration;
 use mln_util::logging::{Event, EventSeverity, Log, Observer};
 
-use super::{local_callback, req, serial, temp_path};
-use crate::ClientOptions;
+use super::{local_callback, req, temp_path};
 use crate::database_file_source::DatabaseFileSource;
 use crate::file_source::{FileSource, FileSourceType, READ_ONLY_MODE_KEY};
 use crate::file_source_manager::FileSourceManager;
@@ -23,15 +21,14 @@ use crate::response::{Reason, Response};
 use crate::sqlite3::{Database, OpenFlag, Query, Statement};
 
 fn dbfs() -> Arc<dyn FileSource> {
-    FileSourceManager::get()
-        .get_file_source(FileSourceType::Database, &ResourceOptions::default(), &ClientOptions::default())
+    FileSourceManager::new()
+        .get_file_source(FileSourceType::Database, &ResourceOptions::default())
         .expect("database file source")
 }
 
 // gtest: DatabaseFileSource.PauseResume
 #[test]
 fn pause_resume() {
-    let _serial = serial();
     let run_loop = RunLoop::new();
 
     let dbfs = dbfs();
@@ -51,7 +48,6 @@ fn pause_resume() {
 // gtest: DatabaseFileSource.VolatileResource
 #[test]
 fn volatile_resource() {
-    let _serial = serial();
     let run_loop = RunLoop::new();
 
     let dbfs = dbfs();
@@ -106,7 +102,6 @@ fn volatile_resource() {
 // gtest: DatabaseFileSource.VolatileResourceIsNotStored
 #[test]
 fn volatile_resource_is_not_stored() {
-    let _serial = serial();
     let run_loop = RunLoop::new();
 
     let dbfs = dbfs();
@@ -147,7 +142,7 @@ fn volatile_resource_is_not_stored() {
 // Not a C++ test: `canRequest`.
 #[test]
 fn can_request() {
-    let dbfs = DatabaseFileSource::new(&ResourceOptions::default(), &ClientOptions::default());
+    let dbfs = DatabaseFileSource::new(&FileSourceManager::new(), &ResourceOptions::default());
     let cache_only = |url: &str| Resource::with_tile_data(Kind::Unknown, url, None, LoadingMethod::CacheOnly);
     assert!(dbfs.can_request(&cache_only("http://example.com")));
     assert!(!dbfs.can_request(&cache_only("asset://example.json")));
@@ -237,7 +232,7 @@ fn failed_accessed_flush_waits_for_next_read() {
     Log::set_observer(Box::new(FlushFailures { count: failures.clone(), marker }));
     let _remove_observer = RemoveObserver;
 
-    let source = DatabaseFileSource::new(&ResourceOptions::default().with_cache_path(&path), &ClientOptions::default());
+    let source = DatabaseFileSource::new(&FileSourceManager::new(), &ResourceOptions::default().with_cache_path(&path));
     let cached = cached_request(&run_loop, &source, &resource);
     assert!(cached.error.is_none());
     assert_eq!(response.data, cached.data);
@@ -273,7 +268,7 @@ fn maintain(operation: impl FnOnce(Box<dyn FnOnce(Result<(), DatabaseError>) + S
 fn cache_maintenance() {
     let run_loop = RunLoop::new();
     let path = temp_path("cache-maintenance.db");
-    let source = DatabaseFileSource::new(&ResourceOptions::default().with_cache_path(&path), &ClientOptions::default());
+    let source = DatabaseFileSource::new(&FileSourceManager::new(), &ResourceOptions::default().with_cache_path(&path));
     let resource =
         Resource::with_tile_data(Kind::Unknown, "https://example.com/maintained", None, LoadingMethod::CacheOnly);
     let mut response = Response::new();

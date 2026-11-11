@@ -18,7 +18,6 @@ use std::sync::Mutex;
 
 use feature::Value;
 use mln_actor::{AsyncTask, LocalObject};
-use mln_util::client_options::ClientOptions;
 use mln_util::sync::MutexExt;
 use mln_vec_map::VecMap;
 
@@ -57,7 +56,6 @@ pub struct StubFileSource {
     type_: ResponseType,
     state: LocalObject<RefCell<State>>,
     resource_options: Mutex<ResourceOptions>,
-    client_options: Mutex<ClientOptions>,
 }
 
 struct StubFileRequest {
@@ -97,7 +95,6 @@ impl StubFileSource {
             type_,
             state: LocalObject::from_rc(state),
             resource_options: Mutex::new(ResourceOptions::default()),
-            client_options: Mutex::new(ClientOptions::default()),
         }
     }
 
@@ -236,13 +233,5 @@ impl FileSource for StubFileSource {
 
     fn get_resource_options(&self) -> ResourceOptions {
         self.resource_options.lock_unpoisoned().clone()
-    }
-
-    fn set_client_options(&self, options: ClientOptions) {
-        *self.client_options.lock_unpoisoned() = options;
-    }
-
-    fn get_client_options(&self) -> ClientOptions {
-        self.client_options.lock_unpoisoned().clone()
     }
 }

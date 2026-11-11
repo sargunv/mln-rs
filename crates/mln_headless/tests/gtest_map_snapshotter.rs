@@ -6,7 +6,7 @@ use std::rc::{Rc, Weak};
 
 use mln_actor::{RunLoop, Timer};
 use mln_headless::map_snapshotter::{Callback, MapSnapshotter, MapSnapshotterObserver};
-use mln_storage::{ClientOptions, ResourceOptions};
+use mln_storage::ResourceOptions;
 use mln_style::layers::fill_layer::FillLayer;
 use mln_style::{Layer, PropertyValue};
 use mln_test_server::HttpServer;
@@ -27,7 +27,7 @@ const GREEN_BACKGROUND: &str = r#"{
 
 /// `MapSnapshotter snapshotter(size, 1.0f, ResourceOptions())`.
 fn snapshotter(size: Size) -> MapSnapshotter {
-    MapSnapshotter::new(size, 1.0, &ResourceOptions::default(), &ClientOptions::default()).unwrap()
+    MapSnapshotter::new(size, 1.0, &ResourceOptions::default()).unwrap()
 }
 
 /// A snapshot callback that expects an image of `size`, then stops the run
@@ -120,14 +120,7 @@ fn runtime_styling() {
     let run_loop = RunLoop::new();
     let observer = Rc::new(SnapshotterObserver::default());
     let snapshotter = Rc::new(
-        MapSnapshotter::with_observer(
-            Size::new(256, 128),
-            1.0,
-            &ResourceOptions::default(),
-            &ClientOptions::default(),
-            observer.clone(),
-        )
-        .unwrap(),
+        MapSnapshotter::with_observer(Size::new(256, 128), 1.0, &ResourceOptions::default(), observer.clone()).unwrap(),
     );
     snapshotter.set_style_url(&server.url("/online/style.json"));
 

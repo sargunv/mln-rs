@@ -64,7 +64,6 @@ pub use local_file_source::LocalFileSource;
 pub use main_resource_loader::MainResourceLoader;
 #[cfg(feature = "sqlite")]
 pub use mbtiles_file_source::MBTilesFileSource;
-pub use mln_util::client_options::ClientOptions;
 #[cfg(feature = "sqlite")]
 pub use offline_database::{MapboxTileLimitExceededException, OfflineDatabase};
 pub use online_file_source::OnlineFileSource;

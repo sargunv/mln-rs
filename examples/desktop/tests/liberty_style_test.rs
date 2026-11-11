@@ -1,5 +1,5 @@
 // Loads OpenFreeMap Liberty (main.cpp's default style) over HTTPS through
-// the path mln-desktop uses: Map -> FileSourceManager's ResourceLoader ->
+// the path mln-desktop uses: Map -> its ResourceLoader ->
 // OnlineFileSource -> HTTPFileSource (the platform transport),
 // `Style::loadURL`, the Map's style-response event and the parser. Needs
 // network access.

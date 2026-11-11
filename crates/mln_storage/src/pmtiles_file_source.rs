@@ -10,7 +10,7 @@
 // built as a rapidjson document would be (members in insertion order,
 // duplicates kept) and written with //vendor/rapidjson's `Writer`.
 //
-// The resource and client options are shared with the thread behind a mutex
+// The resource options are shared with the thread behind a mutex
 // (C++: in the thread object, read back with a blocking `ask`).
 //
 // TODO(port): makeThreadPrioritySetter(EXPERIMENTAL_THREAD_PRIORITY_FILE).
@@ -21,7 +21,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use mln_actor::{ActorRef, Thread};
-use mln_util::client_options::ClientOptions;
 use mln_util::compression::{decompress, is_compressed};
 use mln_util::constants::{FILE_PROTOCOL, PMTILES_PROTOCOL};
 use mln_util::sync::MutexExt;
@@ -78,7 +77,7 @@ fn send(req: &ActorRef<FileSourceRequestState>, response: Response) {
 /// The members of `PMTilesFileSource::Impl`.
 struct State {
     resource_options: Arc<Mutex<ResourceOptions>>,
-    client_options: Arc<Mutex<ClientOptions>>,
+    file_sources: FileSourceManager,
 
     file_source: RefCell<Option<Arc<dyn FileSource>>>,
     header_cache: RefCell<VecMap<String, HeaderV3>>,
@@ -94,9 +93,8 @@ impl State {
         file_source
             .get_or_insert_with(|| {
                 let resource_options = self.resource_options.lock_unpoisoned().clone();
-                let client_options = self.client_options.lock_unpoisoned().clone();
-                FileSourceManager::get()
-                    .get_file_source(FileSourceType::ResourceLoader, &resource_options, &client_options)
+                self.file_sources
+                    .get_file_source(FileSourceType::ResourceLoader, &resource_options)
                     .expect("ResourceLoader file source")
             })
             .clone()
@@ -669,20 +667,20 @@ static NEXT_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 pub struct PMTilesFileSource {
     thread: Thread<PMTilesFileSourceThread>,
     resource_options: Arc<Mutex<ResourceOptions>>,
-    client_options: Arc<Mutex<ClientOptions>>,
 }
 
 impl PMTilesFileSource {
-    /// `PMTilesFileSource(const ResourceOptions&, const ClientOptions&)`.
-    pub fn new(resource_options: &ResourceOptions, client_options: &ClientOptions) -> Self {
+    /// A PMTiles file source that reads archives through `file_sources`'
+    /// `ResourceLoader`.
+    pub fn new(file_sources: &FileSourceManager, resource_options: &ResourceOptions) -> Self {
         let resource_options = Arc::new(Mutex::new(resource_options.clone()));
-        let client_options = Arc::new(Mutex::new(client_options.clone()));
-        let (ro, co) = (resource_options.clone(), client_options.clone());
+        let ro = resource_options.clone();
+        let file_sources = file_sources.clone();
         PMTilesFileSource {
             thread: Thread::new("PMTilesFileSource", move |_| PMTilesFileSourceThread {
                 state: Rc::new(State {
                     resource_options: ro,
-                    client_options: co,
+                    file_sources,
                     file_source: RefCell::new(None),
                     header_cache: RefCell::new(VecMap::new()),
                     metadata_cache: RefCell::new(VecMap::new()),
@@ -692,7 +690,6 @@ impl PMTilesFileSource {
                 }),
             }),
             resource_options,
-            client_options,
         }
     }
 }
@@ -726,13 +723,5 @@ impl FileSource for PMTilesFileSource {
 
     fn get_resource_options(&self) -> ResourceOptions {
         self.resource_options.lock_unpoisoned().clone()
-    }
-
-    fn set_client_options(&self, options: ClientOptions) {
-        *self.client_options.lock_unpoisoned() = options;
-    }
-
-    fn get_client_options(&self) -> ClientOptions {
-        self.client_options.lock_unpoisoned().clone()
     }
 }

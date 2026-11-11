@@ -11,7 +11,7 @@ use mln_actor::RunLoop;
 use mln_headless::HeadlessFrontend;
 use mln_map::{Map, MapOptions, NullMapObserver};
 use mln_storage::response::{Error, Reason};
-use mln_storage::{AsyncRequest, Callback, ClientOptions, FileSource, Resource, ResourceOptions, Response};
+use mln_storage::{AsyncRequest, Callback, FileSource, Resource, ResourceOptions, Response};
 use mln_util::size::Size;
 
 fn read_file(relative: &str) -> Vec<u8> {
@@ -59,12 +59,6 @@ impl FileSource for SyncFileSource {
 
     fn get_resource_options(&self) -> ResourceOptions {
         ResourceOptions::default()
-    }
-
-    fn set_client_options(&self, _options: ClientOptions) {}
-
-    fn get_client_options(&self) -> ClientOptions {
-        ClientOptions::default()
     }
 }
 

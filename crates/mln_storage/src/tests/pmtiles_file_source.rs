@@ -1,7 +1,5 @@
 // Ports test/storage/pmtiles_file_source.test.cpp. The fixtures are read in
-// place (C++: relative to the working directory). The tests take `serial()`:
-// the PMTiles file source reads through the FileSourceManager's shared
-// ResourceLoader.
+// place (C++: relative to the working directory).
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -10,9 +8,9 @@ use mln_actor::RunLoop;
 use mln_util::constants::{FILE_PROTOCOL, PMTILES_PROTOCOL};
 use mln_util::tileset::Scheme;
 
-use super::{cpp_path, req, serial};
-use crate::ClientOptions;
+use super::{cpp_path, req};
 use crate::file_source::FileSource;
+use crate::file_source_manager::FileSourceManager;
 use crate::pmtiles_file_source::PMTilesFileSource;
 use crate::resource::{Kind, LoadingMethod, Resource};
 use crate::resource_options::ResourceOptions;
@@ -24,7 +22,7 @@ fn to_absolute_url(file_name: &str) -> String {
 }
 
 fn pmtiles_file_source() -> Rc<PMTilesFileSource> {
-    Rc::new(PMTilesFileSource::new(&ResourceOptions::default_options(), &ClientOptions::default()))
+    Rc::new(PMTilesFileSource::new(&FileSourceManager::new(), &ResourceOptions::default_options()))
 }
 
 fn tile(url: &str, z: i8) -> Resource {
@@ -64,7 +62,6 @@ fn accepts_url() {
 // gtest: PMTilesFileSource.NonExistentFile
 #[test]
 fn non_existent_file() {
-    let _serial = serial();
     let pmtiles = pmtiles_file_source();
     let res = request(&pmtiles, Resource::new(Kind::Unknown, to_absolute_url("does_not_exist")));
     let error = res.error.as_ref().expect("error");
@@ -77,7 +74,6 @@ fn non_existent_file() {
 // gtest: PMTilesFileSource.TileJSON
 #[test]
 fn tile_json() {
-    let _serial = serial();
     let pmtiles = pmtiles_file_source();
     let res = request(&pmtiles, Resource::new(Kind::Unknown, to_absolute_url("geography-class-png.pmtiles")));
     assert_eq!(None, res.error);
@@ -90,7 +86,6 @@ fn tile_json() {
 // gtest: PMTilesFileSource.Tile
 #[test]
 fn tile_data() {
-    let _serial = serial();
     let pmtiles = pmtiles_file_source();
     let res = request(&pmtiles, tile(&to_absolute_url("geography-class-png.pmtiles"), 0));
     assert_eq!(None, res.error);
@@ -102,7 +97,6 @@ fn tile_data() {
 // gtest: PMTilesFileSource.NonExistentTile
 #[test]
 fn non_existent_tile() {
-    let _serial = serial();
     let pmtiles = pmtiles_file_source();
     let res = request(&pmtiles, tile(&to_absolute_url("geography-class-png.pmtiles"), 4));
     assert_eq!(None, res.error);
@@ -116,7 +110,6 @@ fn non_existent_tile() {
 // gtest: PMTilesFileSource.CorruptGzipTile
 #[test]
 fn corrupt_gzip_tile() {
-    let _serial = serial();
     let pmtiles = pmtiles_file_source();
     let res = request(&pmtiles, tile(&to_absolute_url("corrupt-gzip-tile.pmtiles"), 0));
     let error = res.error.as_ref().expect("error");
@@ -130,7 +123,6 @@ fn corrupt_gzip_tile() {
 // gtest: PMTilesFileSource.CorruptGzipMetadata
 #[test]
 fn corrupt_gzip_metadata() {
-    let _serial = serial();
     let pmtiles = pmtiles_file_source();
     let res = request(&pmtiles, Resource::new(Kind::Unknown, to_absolute_url("corrupt-gzip-metadata.pmtiles")));
     let error = res.error.as_ref().expect("error");
@@ -147,7 +139,6 @@ fn corrupt_gzip_metadata() {
 // gtest: PMTilesFileSource.RepeatedTileRequest
 #[test]
 fn repeated_tile_request() {
-    let _serial = serial();
     let run_loop = RunLoop::new();
     let pmtiles = pmtiles_file_source();
 
@@ -184,7 +175,6 @@ fn repeated_tile_request() {
 // gtest: PMTilesFileSource.UncompressedTile
 #[test]
 fn uncompressed_tile() {
-    let _serial = serial();
     let pmtiles = pmtiles_file_source();
     let res = request(&pmtiles, tile(&to_absolute_url("uncompressed-tiles.pmtiles"), 0));
     assert_eq!(None, res.error);

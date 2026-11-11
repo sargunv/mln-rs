@@ -7,14 +7,13 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use mln_actor::timer::Timer;
 use mln_storage::{
-    AsyncRequest, Callback, ClientOptions, FileSource, FileSourceManager, FileSourceType, Kind, Resource,
-    ResourceOptions, Response,
+    AsyncRequest, Callback, FileSource, FileSourceManager, FileSourceType, Kind, Resource, ResourceOptions, Response,
 };
 use mln_util::chrono::Timestamp;
 
@@ -36,21 +35,17 @@ pub fn take_tile_requests() -> usize {
     TILE_REQUESTS.swap(0, Ordering::SeqCst)
 }
 
-/// Wraps the `ResourceLoader` factory, once per process. Must run before
-/// the first map asks for its file source.
-pub fn register() {
-    static REGISTER: Once = Once::new();
-    REGISTER.call_once(|| {
-        let manager = FileSourceManager::get();
-        let inner =
-            manager.un_register_file_source_factory(FileSourceType::ResourceLoader).expect("a ResourceLoader factory");
-        manager.register_file_source_factory(
-            FileSourceType::ResourceLoader,
-            Arc::new(move |resource_options: &ResourceOptions, client_options: &ClientOptions| {
-                Arc::new(Delayed { inner: inner(resource_options, client_options) }) as Arc<dyn FileSource>
-            }),
-        );
-    });
+/// Wraps the `ResourceLoader` factory of `file_sources`. Must run before
+/// the first map asks it for its file source.
+pub fn register(file_sources: &FileSourceManager) {
+    let inner =
+        file_sources.unregister_file_source_factory(FileSourceType::ResourceLoader).expect("a ResourceLoader factory");
+    file_sources.register_file_source_factory(
+        FileSourceType::ResourceLoader,
+        Arc::new(move |file_sources: &FileSourceManager, resource_options: &ResourceOptions| {
+            Arc::new(Delayed { inner: inner(file_sources, resource_options) }) as Arc<dyn FileSource>
+        }),
+    );
 }
 
 struct Delayed {
@@ -119,13 +114,5 @@ impl FileSource for Delayed {
 
     fn get_resource_options(&self) -> ResourceOptions {
         self.inner.get_resource_options()
-    }
-
-    fn set_client_options(&self, options: ClientOptions) {
-        self.inner.set_client_options(options);
-    }
-
-    fn get_client_options(&self) -> ClientOptions {
-        self.inner.get_client_options()
     }
 }

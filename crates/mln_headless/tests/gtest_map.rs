@@ -30,8 +30,8 @@ use mln_storage::network_status::{NetworkStatus, Status as NetworkStatusType};
 use mln_storage::response::{Error as ResponseError, Reason};
 use mln_storage::stub_file_source::{ResponseType, StubFileSource};
 use mln_storage::{
-    ClientOptions, FileSource, FileSourceManager, FileSourceType, Kind, LoadingMethod, MainResourceLoader,
-    OnlineFileSource, Resource, ResourceOptions, Response, StoragePolicy,
+    FileSource, FileSourceManager, FileSourceType, Kind, LoadingMethod, MainResourceLoader, OnlineFileSource, Resource,
+    ResourceOptions, Response, StoragePolicy,
 };
 use mln_style::conversion::layer::convert_layer;
 use mln_style::conversion::{Convertible, Error as ConversionError};
@@ -679,21 +679,24 @@ fn pixel_for_lat_lng_during_a_fling_across_the_antimeridian() {
     }
 }
 
-/// `MapTest<MainResourceLoader> test{cachePath, assetPath}`.
-fn main_resource_loader_test(cache_path: &str, asset_path: &str) -> MapTest<MainResourceLoader> {
+/// `MapTest<MainResourceLoader> test{cachePath, assetPath}`, over
+/// `file_sources`.
+fn main_resource_loader_test(
+    file_sources: &FileSourceManager,
+    cache_path: &str,
+    asset_path: &str,
+) -> MapTest<MainResourceLoader> {
     let run_loop = RunLoop::new();
     let file_source = Arc::new(MainResourceLoader::new(
+        file_sources,
         &ResourceOptions::default().with_cache_path(cache_path).with_asset_path(asset_path),
-        &ClientOptions::default(),
     ));
     MapTest::create(run_loop, file_source, 1.0, MapMode::Static)
 }
 
-/// `FileSourceManager::get()->getFileSource(FileSourceType::Database, ResourceOptions{})`.
-fn database_file_source() -> Arc<dyn FileSource> {
-    FileSourceManager::get()
-        .get_file_source(FileSourceType::Database, &ResourceOptions::default(), &ClientOptions::default())
-        .expect("database file source")
+/// `getFileSource(FileSourceType::Database, ResourceOptions{})`.
+fn database_file_source(file_sources: &FileSourceManager) -> Arc<dyn FileSource> {
+    file_sources.get_file_source(FileSourceType::Database, &ResourceOptions::default()).expect("database file source")
 }
 
 /// A `dbfs->forward(..., [] {})` callback.
@@ -704,7 +707,8 @@ fn no_op() -> Option<Box<dyn FnOnce() + Send>> {
 // gtest: Map.Offline
 #[test]
 fn offline() {
-    let test = main_resource_loader_test(":memory:", ".");
+    let file_sources = FileSourceManager::new();
+    let test = main_resource_loader_test(&file_sources, ":memory:", ".");
 
     // C++ CI leaves this test out on the macOS runners
     // (.github/workflows/macos-ci.yml, --gtest_filter=-...:Map.Offline, for
@@ -731,7 +735,7 @@ fn offline() {
 
     NetworkStatus::set(NetworkStatusType::Offline);
     let prefix = "http://127.0.0.1:3000/";
-    let dbfs = database_file_source();
+    let dbfs = database_file_source(&file_sources);
     dbfs.forward(&Resource::style(&format!("{prefix}style.json")), &expired_item("style.json"), no_op());
     dbfs.forward(&Resource::source(&format!("{prefix}streets.json")), &expired_item("streets.json"), no_op());
     dbfs.forward(&Resource::sprite_json(&format!("{prefix}sprite"), 1.0), &expired_item("sprite.json"), no_op());
@@ -1097,7 +1101,7 @@ fn style_loaded_signal() {
 /// `MapTest<OnlineFileSource> test(ResourceOptions::Default())`.
 fn online_file_source_test() -> MapTest<OnlineFileSource> {
     let run_loop = RunLoop::new();
-    let file_source = Arc::new(OnlineFileSource::new(&ResourceOptions::default_options(), &ClientOptions::default()));
+    let file_source = Arc::new(OnlineFileSource::new(&ResourceOptions::default_options()));
     MapTest::create(run_loop, file_source, 1.0, MapMode::Static)
 }
 
@@ -1332,10 +1336,10 @@ fn continuous_rendering() {
         &frontend,
         observer.clone(),
         MapOptions::new().with_map_mode(MapMode::Continuous).with_size(frontend.get_size()),
+        &FileSourceManager::new(),
         &ResourceOptions::default()
             .with_cache_path(":memory:")
             .with_asset_path(cpp_root().join("test/fixtures/api/assets").to_str().unwrap()),
-        &ClientOptions::default(),
     )
     .unwrap();
     map.get_style_mut().load_json(&read_file("test/fixtures/api/water.json"));
@@ -1347,13 +1351,14 @@ fn continuous_rendering() {
 // gtest: Map.NoContentTiles
 #[test]
 fn no_content_tiles() {
-    let test = main_resource_loader_test(":memory:", ".");
+    let file_sources = FileSourceManager::new();
+    let test = main_resource_loader_test(&file_sources, ":memory:", ".");
 
     // Insert a 204 No Content response for the 0/0/0 tile
     let mut response = Response::new();
     response.no_content = true;
     response.expires = Some(hours_from_now(1));
-    let dbfs = database_file_source();
+    let dbfs = database_file_source(&file_sources);
     // C++ loads the style in the callback (inside render's run loop); see
     // Map.Offline for why the port waits for it first.
     let handle = test.run_loop.handle();
@@ -2075,9 +2080,10 @@ fn expired_sprite_sheet() {
     // `MapTest<MainResourceLoader, ForwardingHeadlessFrontend>
     // test{":memory:", ".", 1, MapMode::Continuous}`.
     let run_loop = RunLoop::new();
+    let file_sources = FileSourceManager::new();
     let file_source = Arc::new(MainResourceLoader::new(
+        &file_sources,
         &ResourceOptions::default().with_cache_path(":memory:").with_asset_path("."),
-        &ClientOptions::default(),
     ));
     let observer = Rc::new(StubMapObserver::default());
     let frontend =
@@ -2118,7 +2124,7 @@ fn expired_sprite_sheet() {
 
     NetworkStatus::set(NetworkStatusType::Offline);
     let prefix = server.url("/online/");
-    let dbfs = database_file_source();
+    let dbfs = database_file_source(&file_sources);
     dbfs.forward(&Resource::style(&format!("{prefix}style.json")), &make_response("style.json", false), no_op());
     dbfs.forward(&Resource::source(&format!("{prefix}streets.json")), &make_response("streets.json", false), no_op());
     dbfs.forward(&Resource::sprite_json(&format!("{prefix}sprite"), 1.0), &make_response("sprite.json", true), no_op());
@@ -2696,10 +2702,10 @@ fn observe_tile_lifecycle() {
         &frontend,
         observer.clone(),
         MapOptions::new().with_map_mode(MapMode::Static).with_size(frontend.get_size()),
+        &FileSourceManager::new(),
         &ResourceOptions::default()
             .with_cache_path(":memory:")
             .with_asset_path(cpp_root().join("test/fixtures/api/assets").to_str().unwrap()),
-        &ClientOptions::default(),
     )
     .unwrap();
     map.get_style_mut().load_json(&read_file("test/fixtures/api/water.json"));

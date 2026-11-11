@@ -10,7 +10,7 @@ use mln_map_types::{
     ViewportMode,
 };
 use mln_renderer::{ExceptionPtr, FeatureInfo, LayerFeaturesMap, RendererFrontend, RenderingStats, SourceLayerID};
-use mln_storage::{ClientOptions, FileSource, FileSourceManager, FileSourceType, ResourceOptions};
+use mln_storage::{FileSource, FileSourceManager, FileSourceType, ResourceOptions};
 use mln_style::Style;
 use mln_util::chrono::TimePoint;
 use mln_util::exception::MisuseException;
@@ -28,8 +28,8 @@ pub struct Map {
 }
 
 impl Map {
-    /// `Map(RendererFrontend&, MapObserver&, const MapOptions&)` with the
-    /// default `ResourceOptions()` and `ClientOptions()`.
+    /// `Map(RendererFrontend&, MapObserver&, const MapOptions&)`, with a
+    /// `ResourceLoader` of its own for the default `ResourceOptions`.
     ///
     /// C++ keeps a reference to the frontend; frontends are handles here
     /// (`Clone` shares the same renderer), so the map keeps a clone.
@@ -44,27 +44,26 @@ impl Map {
             frontend,
             observer,
             map_options,
+            &FileSourceManager::new(),
             &ResourceOptions::default(),
-            &ClientOptions::default(),
         )
     }
 
-    /// `Map(RendererFrontend&, MapObserver&, const MapOptions&, const
-    /// ResourceOptions&, const ClientOptions&)`: the file source is the
-    /// FileSourceManager's `ResourceLoader` for these options.
+    /// A map whose file source is `file_sources`' `ResourceLoader` for
+    /// `resource_options`, or none when `file_sources` has no
+    /// `ResourceLoader` factory.
     // TODO(port): ActionJournalOptions.
     pub fn with_resource_options<F>(
         frontend: &F,
         observer: Rc<dyn MapObserver>,
         map_options: MapOptions,
+        file_sources: &FileSourceManager,
         resource_options: &ResourceOptions,
-        client_options: &ClientOptions,
     ) -> Result<Map, String>
     where
         F: RendererFrontend + Clone + 'static,
     {
-        let file_source =
-            FileSourceManager::get().get_file_source(FileSourceType::ResourceLoader, resource_options, client_options);
+        let file_source = file_sources.get_file_source(FileSourceType::ResourceLoader, resource_options);
         Ok(Map { impl_: MapImpl::new(Box::new(frontend.clone()), observer, file_source, &map_options)? })
     }
 
@@ -82,14 +81,6 @@ impl Map {
         F: RendererFrontend + Clone + 'static,
     {
         Ok(Map { impl_: MapImpl::new(Box::new(frontend.clone()), observer, Some(file_source), &map_options)? })
-    }
-
-    /// `getClientOptions()`.
-    pub fn get_client_options(&self) -> ClientOptions {
-        match &self.impl_.file_source {
-            Some(file_source) => file_source.get_client_options(),
-            None => ClientOptions::default(),
-        }
     }
 
     /// Register a callback that will get called (on the render thread) when

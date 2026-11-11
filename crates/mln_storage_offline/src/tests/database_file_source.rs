@@ -11,7 +11,7 @@ use mln_storage::offline::{
     OfflineTilePyramidRegionDefinition,
 };
 use mln_storage::offline_database::{DatabaseError, OfflineDatabase};
-use mln_storage::{ClientOptions, DatabaseFileSource, ResourceOptions};
+use mln_storage::{DatabaseFileSource, FileSourceManager, ResourceOptions};
 use mln_util::geo::{LatLng, LatLngBounds};
 
 use super::TempDir;
@@ -29,8 +29,8 @@ fn wait<T: Send + 'static>(operation: impl FnOnce(Box<dyn FnOnce(T) + Send>)) ->
 /// A database file source with its database in `dir`.
 fn database_file_source(dir: &TempDir) -> DatabaseFileSource {
     DatabaseFileSource::new(
+        &FileSourceManager::new(),
         &ResourceOptions::default().with_cache_path(dir.path("cache.db")),
-        &ClientOptions::default(),
     )
 }
 

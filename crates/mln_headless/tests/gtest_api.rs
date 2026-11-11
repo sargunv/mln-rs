@@ -15,7 +15,7 @@ use mln_actor::RunLoop;
 use mln_headless::HeadlessFrontend;
 use mln_map::{CameraOptions, Map, MapMode, MapOptions, NullMapObserver};
 use mln_storage::stub_file_source::{ResponseType, StubFileSource};
-use mln_storage::{ClientOptions, ResourceOptions};
+use mln_storage::{FileSourceManager, ResourceOptions};
 use mln_style::PropertyValue;
 use mln_style::layer::Layer;
 use mln_style::layers::fill_layer::FillLayer;
@@ -58,10 +58,10 @@ fn grid() {
         &frontend,
         Rc::new(NullMapObserver),
         MapOptions::new().with_map_mode(MapMode::Static).with_size(frontend.get_size()),
+        &FileSourceManager::new(),
         &ResourceOptions::default()
             .with_cache_path(":memory:")
             .with_asset_path(cpp_root().join("test/fixtures/api/assets").to_str().unwrap()),
-        &ClientOptions::default(),
     )
     .unwrap();
     map.get_style_mut().load_json(&read_file("test/fixtures/api/water.json"));

@@ -14,7 +14,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use mln_actor::{ActorRef, Thread};
-use mln_util::client_options::ClientOptions;
 use mln_util::sync::MutexExt;
 use mln_vec_map::VecMap;
 
@@ -213,7 +212,6 @@ struct Impl {
     pmtiles_file_source: FileSourcePtr,
     supports_cache_only_requests: bool,
     resource_options: Mutex<ResourceOptions>,
-    client_options: Mutex<ClientOptions>,
 }
 
 static NEXT_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
@@ -222,7 +220,6 @@ impl Impl {
     #[allow(clippy::too_many_arguments)]
     fn new(
         resource_options: &ResourceOptions,
-        client_options: &ClientOptions,
         asset_file_source: FileSourcePtr,
         database_file_source: FileSourcePtr,
         local_file_source: FileSourcePtr,
@@ -253,7 +250,6 @@ impl Impl {
             mbtiles_file_source,
             pmtiles_file_source,
             resource_options: Mutex::new(resource_options.clone()),
-            client_options: Mutex::new(client_options.clone()),
         }
     }
 
@@ -304,14 +300,13 @@ pub struct MainResourceLoader {
 }
 
 impl MainResourceLoader {
-    /// `MainResourceLoader(const ResourceOptions&, const ClientOptions&)`.
-    pub fn new(resource_options: &ResourceOptions, client_options: &ClientOptions) -> Self {
-        let manager = FileSourceManager::get();
-        let get = |type_| manager.get_file_source(type_, resource_options, client_options);
+    /// A loader over `file_sources`' asset, database, file system,
+    /// network, MBTiles and PMTiles file sources for these options.
+    pub fn new(file_sources: &FileSourceManager, resource_options: &ResourceOptions) -> Self {
+        let get = |type_| file_sources.get_file_source(type_, resource_options);
         MainResourceLoader {
             impl_: Impl::new(
                 resource_options,
-                client_options,
                 get(FileSourceType::Asset),
                 get(FileSourceType::Database),
                 get(FileSourceType::FileSystem),
@@ -354,17 +349,5 @@ impl FileSource for MainResourceLoader {
 
     fn get_resource_options(&self) -> ResourceOptions {
         self.impl_.resource_options.lock_unpoisoned().clone()
-    }
-
-    fn set_client_options(&self, options: ClientOptions) {
-        let mut client_options = self.impl_.client_options.lock_unpoisoned();
-        *client_options = options.clone();
-        for fs in self.impl_.in_member_order().into_iter().flatten() {
-            fs.set_client_options(options.clone());
-        }
-    }
-
-    fn get_client_options(&self) -> ClientOptions {
-        self.impl_.client_options.lock_unpoisoned().clone()
     }
 }

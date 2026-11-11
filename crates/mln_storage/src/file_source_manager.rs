@@ -1,18 +1,12 @@
-// Ports include/mln/storage/file_source_manager.hpp,
-// src/mln/storage/file_source_manager.cpp and
-// platform/default/src/mln/storage/file_source_manager.cpp (the default
-// factories).
-//
-// C++ holds a recursive mutex while a factory runs (the MainResourceLoader
-// factory asks the manager for its own file sources). Rust has no recursive
-// mutex in std, so the lock is released while the factory runs; on one
-// thread the result is the same. If two threads create the same file source
-// at once, the first one registered wins and the other is dropped.
+//! The file sources of one owner, shared per (type, options).
+//!
+//! The lock is released while a factory runs, because the `ResourceLoader`
+//! factory asks the same manager for its own file sources. If two threads
+//! create the same file source at once, the first one registered wins and
+//! the other is dropped.
 
-use std::sync::{Arc, Mutex, OnceLock, Weak};
+use std::sync::{Arc, Mutex, Weak};
 
-use mln_util::client_options::ClientOptions;
-use mln_util::string::to_string_u64;
 use mln_util::sync::MutexExt;
 use mln_vec_map::VecMap;
 
@@ -28,156 +22,144 @@ use crate::online_file_source::OnlineFileSource;
 use crate::pmtiles_file_source::PMTilesFileSource;
 use crate::resource_options::ResourceOptions;
 
-/// `FileSourceManager::FileSourceFactory`.
-pub type FileSourceFactory = Arc<dyn Fn(&ResourceOptions, &ClientOptions) -> Arc<dyn FileSource> + Send + Sync>;
+/// Creates the file source of one type. It gets the manager that asked, so
+/// a file source built on others (the `ResourceLoader`) takes them from the
+/// same owner.
+pub type FileSourceFactory = Arc<dyn Fn(&FileSourceManager, &ResourceOptions) -> Arc<dyn FileSource> + Send + Sync>;
 
 struct FileSourceInfo {
     type_: FileSourceType,
-    id: String,
+    options: ResourceOptions,
     file_source: Weak<dyn FileSource>,
 }
 
 #[derive(Default)]
-struct Impl {
+struct Registry {
     file_sources: Vec<FileSourceInfo>,
-    file_source_factories: VecMap<FileSourceType, FileSourceFactory>,
+    factories: VecMap<FileSourceType, FileSourceFactory>,
 }
 
-/// `FileSourceManager`: a singleton (`get()`) that creates and shares file
-/// sources per (type, configuration).
+/// The file sources of one owner (a map's host, a runtime).
+///
+/// [`get_file_source`](Self::get_file_source) shares one live file source
+/// per (type, [`ResourceOptions`]), and drops its record once every user has
+/// released it. Separate managers never share a file source, so a resource
+/// transform, a header transform or a factory one owner installs never
+/// reaches another. `Clone` is another handle to the same file sources.
+#[derive(Clone)]
 pub struct FileSourceManager {
-    impl_: Mutex<Impl>,
+    registry: Arc<Mutex<Registry>>,
+}
+
+impl Default for FileSourceManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl FileSourceManager {
-    fn new() -> Self {
-        FileSourceManager { impl_: Mutex::new(Impl::default()) }
+    /// A manager with the factory of every built-in file source type.
+    pub fn new() -> Self {
+        let manager = Self::empty();
+        manager.register_file_source_factory(
+            FileSourceType::ResourceLoader,
+            Arc::new(|manager: &FileSourceManager, options: &ResourceOptions| {
+                Arc::new(MainResourceLoader::new(manager, options)) as Arc<dyn FileSource>
+            }),
+        );
+        manager.register_file_source_factory(
+            FileSourceType::Asset,
+            Arc::new(|_: &FileSourceManager, options: &ResourceOptions| {
+                Arc::new(AssetFileSource::new(options)) as Arc<dyn FileSource>
+            }),
+        );
+        #[cfg(feature = "sqlite")]
+        manager.register_file_source_factory(
+            FileSourceType::Database,
+            Arc::new(|manager: &FileSourceManager, options: &ResourceOptions| {
+                Arc::new(DatabaseFileSource::new(manager, options)) as Arc<dyn FileSource>
+            }),
+        );
+        manager.register_file_source_factory(
+            FileSourceType::FileSystem,
+            Arc::new(|_: &FileSourceManager, options: &ResourceOptions| {
+                Arc::new(LocalFileSource::new(options)) as Arc<dyn FileSource>
+            }),
+        );
+        #[cfg(feature = "sqlite")]
+        manager.register_file_source_factory(
+            FileSourceType::Mbtiles,
+            Arc::new(|_: &FileSourceManager, options: &ResourceOptions| {
+                Arc::new(MBTilesFileSource::new(options)) as Arc<dyn FileSource>
+            }),
+        );
+        manager.register_file_source_factory(
+            FileSourceType::Pmtiles,
+            Arc::new(|manager: &FileSourceManager, options: &ResourceOptions| {
+                Arc::new(PMTilesFileSource::new(manager, options)) as Arc<dyn FileSource>
+            }),
+        );
+        manager.register_file_source_factory(
+            FileSourceType::Network,
+            Arc::new(|_: &FileSourceManager, options: &ResourceOptions| {
+                Arc::new(OnlineFileSource::new(options)) as Arc<dyn FileSource>
+            }),
+        );
+        manager
     }
 
-    /// `FileSourceManager::get()`: the `DefaultFileSourceManagerImpl`.
-    pub fn get() -> &'static FileSourceManager {
-        static INSTANCE: OnceLock<FileSourceManager> = OnceLock::new();
-        INSTANCE.get_or_init(|| {
-            let manager = FileSourceManager::new();
-            manager.register_file_source_factory(
-                FileSourceType::ResourceLoader,
-                Arc::new(|resource_options: &ResourceOptions, client_options: &ClientOptions| {
-                    Arc::new(MainResourceLoader::new(resource_options, client_options)) as Arc<dyn FileSource>
-                }),
-            );
-            manager.register_file_source_factory(
-                FileSourceType::Asset,
-                Arc::new(|resource_options: &ResourceOptions, client_options: &ClientOptions| {
-                    Arc::new(AssetFileSource::new(resource_options, client_options)) as Arc<dyn FileSource>
-                }),
-            );
-            #[cfg(feature = "sqlite")]
-            manager.register_file_source_factory(
-                FileSourceType::Database,
-                Arc::new(|resource_options: &ResourceOptions, client_options: &ClientOptions| {
-                    Arc::new(DatabaseFileSource::new(resource_options, client_options)) as Arc<dyn FileSource>
-                }),
-            );
-            manager.register_file_source_factory(
-                FileSourceType::FileSystem,
-                Arc::new(|resource_options: &ResourceOptions, client_options: &ClientOptions| {
-                    Arc::new(LocalFileSource::new(resource_options, client_options)) as Arc<dyn FileSource>
-                }),
-            );
-            #[cfg(feature = "sqlite")]
-            manager.register_file_source_factory(
-                FileSourceType::Mbtiles,
-                Arc::new(|resource_options: &ResourceOptions, client_options: &ClientOptions| {
-                    Arc::new(MBTilesFileSource::new(resource_options, client_options)) as Arc<dyn FileSource>
-                }),
-            );
-            manager.register_file_source_factory(
-                FileSourceType::Pmtiles,
-                Arc::new(|resource_options: &ResourceOptions, client_options: &ClientOptions| {
-                    Arc::new(PMTilesFileSource::new(resource_options, client_options)) as Arc<dyn FileSource>
-                }),
-            );
-            manager.register_file_source_factory(
-                FileSourceType::Network,
-                Arc::new(|resource_options: &ResourceOptions, client_options: &ClientOptions| {
-                    Arc::new(OnlineFileSource::new(resource_options, client_options)) as Arc<dyn FileSource>
-                }),
-            );
-            manager
-        })
+    /// A manager without factories.
+    pub fn empty() -> Self {
+        FileSourceManager { registry: Arc::new(Mutex::new(Registry::default())) }
     }
 
-    fn file_source_id(resource_options: &ResourceOptions) -> String {
-        let context = resource_options.platform_context() as u64;
-        let base_url = resource_options.tile_server_options().base_url().to_owned();
-        base_url
-            + "|"
-            + resource_options.api_key()
-            + "|"
-            + resource_options.cache_path()
-            + "|"
-            + &to_string_u64(context)
-    }
-
-    /// Returns shared instance of a file source for (type, options) tuple.
-    /// Creates new instance via registered factory if needed. If new instance
-    /// cannot be created, `None` would be returned.
-    pub fn get_file_source(
-        &self,
-        type_: FileSourceType,
-        resource_options: &ResourceOptions,
-        client_options: &ClientOptions,
-    ) -> Option<Arc<dyn FileSource>> {
-        let id = Self::file_source_id(resource_options);
-
-        let factory = {
-            let mut impl_ = self.impl_.lock_unpoisoned();
-
-            // Remove released file sources.
-            impl_.file_sources.retain(|info| info.file_source.strong_count() > 0);
-
-            if let Some(file_source) = impl_
+    /// The live file source of this type for these options, or a new one
+    /// from the type's factory. `None` when the type has no factory.
+    pub fn get_file_source(&self, type_: FileSourceType, options: &ResourceOptions) -> Option<Arc<dyn FileSource>> {
+        let find = |registry: &Registry| {
+            registry
                 .file_sources
                 .iter()
-                .find(|info| info.type_ == type_ && info.id == id)
+                .find(|info| info.type_ == type_ && info.options == *options)
                 .and_then(|info| info.file_source.upgrade())
-            {
-                return Some(file_source);
-            }
-
-            impl_.file_source_factories.get(&type_)?.clone()
         };
 
-        let file_source = factory(resource_options, client_options);
+        let factory = {
+            let mut registry = self.registry.lock_unpoisoned();
+            registry.file_sources.retain(|info| info.file_source.strong_count() > 0);
+            if let Some(file_source) = find(&registry) {
+                return Some(file_source);
+            }
+            registry.factories.get(&type_)?.clone()
+        };
+
+        let file_source = factory(self, options);
 
         let existing = {
-            let mut impl_ = self.impl_.lock_unpoisoned();
-            let existing = impl_
-                .file_sources
-                .iter()
-                .find(|info| info.type_ == type_ && info.id == id)
-                .and_then(|info| info.file_source.upgrade());
+            let mut registry = self.registry.lock_unpoisoned();
+            let existing = find(&registry);
             if existing.is_none() {
-                impl_.file_sources.push(FileSourceInfo { type_, id, file_source: Arc::downgrade(&file_source) });
+                registry.file_sources.push(FileSourceInfo {
+                    type_,
+                    options: options.clone(),
+                    file_source: Arc::downgrade(&file_source),
+                });
             }
             existing
         };
-        match existing {
-            Some(existing) => Some(existing),
-            None => Some(file_source),
-        }
+        // A losing file source drops here, outside the lock: dropping one
+        // joins its thread, which may be asking this manager for another.
+        Some(existing.unwrap_or(file_source))
     }
 
-    /// Registers file source factory for a provided FileSourceType type. If
-    /// factory for the same type was already registered, will unregister
-    /// previously registered factory.
+    /// Sets the factory of a file source type, replacing any earlier one.
+    /// File sources the earlier factory made stay shared until released.
     pub fn register_file_source_factory(&self, type_: FileSourceType, factory: FileSourceFactory) {
-        self.impl_.lock_unpoisoned().file_source_factories.insert(type_, factory);
+        self.registry.lock_unpoisoned().factories.insert(type_, factory);
     }
 
-    /// Unregisters file source factory. If there are no registered factories
-    /// for a FileSourceType invocation has no effect.
-    pub fn un_register_file_source_factory(&self, type_: FileSourceType) -> Option<FileSourceFactory> {
-        self.impl_.lock_unpoisoned().file_source_factories.remove(&type_)
+    /// Removes the factory of a file source type and returns it.
+    pub fn unregister_file_source_factory(&self, type_: FileSourceType) -> Option<FileSourceFactory> {
+        self.registry.lock_unpoisoned().factories.remove(&type_)
     }
 }

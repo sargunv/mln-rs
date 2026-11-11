@@ -12,9 +12,10 @@ use mln_gfx::{ContextMode, SwapBehaviour};
 use mln_headless::HeadlessFrontend;
 use mln_map::{BoundOptions, Map, MapLoadError, MapObserver, MapOptions, ProjectionMode, RenderMode};
 use mln_renderer::tile::worker_codec::{SerializingTransport, ThreadWorkerInstances};
-use mln_storage::{ClientOptions, FileSource, FileSourceManager, FileSourceType};
+use mln_storage::{FileSource, FileSourceManager, FileSourceType};
 use mln_util::image::PremultipliedImage;
 
+use crate::file_source::proxy_file_sources;
 use crate::metadata::{MapMode, TestMetadata};
 use crate::runner::{
     CameraOptions, ImplFactory, ImplOptions, MapError, QueryGeometry, ResourceOptions, TestRunnerImpl,
@@ -77,14 +78,14 @@ pub struct Impl {
 }
 
 impl Impl {
-    /// `TestRunner::Impl::Impl(metadata, resourceOptions, clientOptions)`,
-    /// plus the port's options (`ImplOptions`).
+    /// `TestRunner::Impl::Impl(metadata, resourceOptions)` over
+    /// `file_sources`, plus the port's options (`ImplOptions`).
     pub fn new(
         metadata: &TestMetadata,
+        file_sources: &FileSourceManager,
         resource_options: &ResourceOptions,
         impl_options: &ImplOptions,
     ) -> Result<Impl, String> {
-        let client_options = ClientOptions::default();
         let resource_options = mln_storage::ResourceOptions::default()
             .with_cache_path(resource_options.cache_path.clone())
             .with_api_key(resource_options.api_key.clone());
@@ -101,11 +102,7 @@ impl Impl {
             let transport = SerializingTransport::new(|replies| Box::new(ThreadWorkerInstances::new(count, replies)));
             frontend.with_renderer(|renderer| renderer.set_tile_worker_transport(transport));
         }
-        let file_source = FileSourceManager::get().get_file_source(
-            FileSourceType::ResourceLoader,
-            &resource_options,
-            &client_options,
-        );
+        let file_source = file_sources.get_file_source(FileSourceType::ResourceLoader, &resource_options);
         let mut map = Map::with_resource_options(
             &frontend,
             observer.clone(),
@@ -114,8 +111,8 @@ impl Impl {
                 .with_size(metadata.size)
                 .with_pixel_ratio(metadata.pixel_ratio)
                 .with_cross_source_collisions(metadata.cross_source_collisions),
+            file_sources,
             &resource_options,
-            &client_options,
         )?;
         if let Some(max_pitch) = metadata.max_pitch {
             map.set_bounds(&BoundOptions::default().with_max_pitch(f64::from(max_pitch)))?;
@@ -450,11 +447,13 @@ impl TestRunnerImpl for Impl {
 }
 
 /// The factory `TestRunner::run` uses for `maps[key]`. Creates the thread's
-/// `util::RunLoop` first, as `runRenderTests` does, and keeps it alive.
+/// `util::RunLoop` first, as `runRenderTests` does, and keeps it alive. Its
+/// maps share one set of [`proxy_file_sources`].
 pub fn factory() -> ImplFactory {
     let run_loop = RunLoop::new();
+    let file_sources = proxy_file_sources();
     Box::new(move |metadata: &TestMetadata, resource_options: &ResourceOptions, impl_options: &ImplOptions| {
         let _ = &run_loop;
-        Ok(Box::new(Impl::new(metadata, resource_options, impl_options)?) as Box<dyn TestRunnerImpl>)
+        Ok(Box::new(Impl::new(metadata, &file_sources, resource_options, impl_options)?) as Box<dyn TestRunnerImpl>)
     })
 }

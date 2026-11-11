@@ -16,7 +16,6 @@ use mln_util::tile_server_options::TileServerOptions;
 
 use super::http_file_source::{LoadState, load_request};
 use super::{Req, req, serial};
-use crate::ClientOptions;
 use crate::file_source::{API_BASE_URL_KEY, API_KEY_KEY, FileSource, MAX_CONCURRENT_REQUESTS_KEY};
 use crate::http_header_transform::HttpHeaderTransform;
 use crate::network_status::{NetworkStatus, Status};
@@ -30,7 +29,7 @@ use crate::response::{Error, Reason, Response};
 const CONNECTION_TIMEOUT: f64 = 0.0;
 
 fn online_file_source() -> Rc<dyn FileSource> {
-    Rc::new(OnlineFileSource::new(&ResourceOptions::default_options(), &ClientOptions::default()))
+    Rc::new(OnlineFileSource::new(&ResourceOptions::default_options()))
 }
 
 fn data(res: &Response) -> &[u8] {

@@ -27,7 +27,6 @@ use std::sync::{Arc, Mutex};
 use feature::Value;
 use mln_actor::{ActorRef, AsyncTask, Mailbox, Thread, Timer, scheduler};
 use mln_util::chrono::{Duration, Timestamp, now};
-use mln_util::client_options::ClientOptions;
 use mln_util::constants::{
     ASSET_PROTOCOL, CLOCK_SKEW_RETRY_TIMEOUT, DEFAULT_MAXIMUM_CONCURRENT_REQUESTS, FILE_PROTOCOL,
 };
@@ -141,7 +140,6 @@ impl PendingRequests {
 /// The members of `OnlineFileSourceThread`.
 struct ThreadState {
     resource_options: RefCell<ResourceOptions>,
-    client_options: RefCell<ClientOptions>,
 
     /// The lifetime of a request is:
     ///
@@ -510,11 +508,10 @@ impl OnlineFileRequest {
 }
 
 impl OnlineFileSourceThread {
-    fn new(resource_options: ResourceOptions, client_options: ClientOptions) -> Self {
-        let http_file_source = HTTPFileSource::new(&resource_options, &client_options);
+    fn new(resource_options: ResourceOptions) -> Self {
+        let http_file_source = HTTPFileSource::new(&resource_options);
         let state = Rc::new(ThreadState {
             resource_options: RefCell::new(resource_options),
-            client_options: RefCell::new(client_options),
             all_requests: RefCell::new(VecSet::new()),
             pending_requests: RefCell::new(PendingRequests::default()),
             active_requests: RefCell::new(VecSet::new()),
@@ -579,10 +576,6 @@ impl OnlineFileSourceThread {
         *self.state.resource_options.borrow_mut() = options;
     }
 
-    fn set_client_options(&self, options: ClientOptions) {
-        *self.state.client_options.borrow_mut() = options;
-    }
-
     /// `setOnlineStatus(bool)`
     fn set_online_status(&self, status: bool) {
         self.state.online.set(status);
@@ -620,7 +613,6 @@ impl Drop for OnlineFileSourceThread {
 /// dropped explicitly first (see `Drop`).
 struct Impl {
     cached_resource_options: Mutex<ResourceOptions>,
-    cached_client_options: Mutex<ClientOptions>,
     cached_maximum_concurrent_requests: Mutex<u32>,
     thread: Thread<OnlineFileSourceThread>,
 }
@@ -628,13 +620,12 @@ struct Impl {
 static NEXT_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
 impl Impl {
-    fn new(resource_options: &ResourceOptions, client_options: &ClientOptions) -> Self {
-        let (ro, co) = (resource_options.clone(), client_options.clone());
+    fn new(resource_options: &ResourceOptions) -> Self {
+        let ro = resource_options.clone();
         // TODO(port): makeThreadPrioritySetter(EXPERIMENTAL_THREAD_PRIORITY_NETWORK).
-        let thread = Thread::new("OnlineFileSource", move |_| OnlineFileSourceThread::new(ro, co));
+        let thread = Thread::new("OnlineFileSource", move |_| OnlineFileSourceThread::new(ro));
         Impl {
             cached_resource_options: Mutex::new(resource_options.clone()),
-            cached_client_options: Mutex::new(client_options.clone()),
             cached_maximum_concurrent_requests: Mutex::new(DEFAULT_MAXIMUM_CONCURRENT_REQUESTS),
             thread,
         }
@@ -663,9 +654,8 @@ pub struct OnlineFileSource {
 }
 
 impl OnlineFileSource {
-    /// `OnlineFileSource(const ResourceOptions&, const ClientOptions&)`
-    pub fn new(resource_options: &ResourceOptions, client_options: &ClientOptions) -> Self {
-        OnlineFileSource { impl_: Impl::new(resource_options, client_options) }
+    pub fn new(resource_options: &ResourceOptions) -> Self {
+        OnlineFileSource { impl_: Impl::new(resource_options) }
     }
 }
 
@@ -788,15 +778,5 @@ impl FileSource for OnlineFileSource {
 
     fn get_resource_options(&self) -> ResourceOptions {
         self.impl_.cached_resource_options.lock_unpoisoned().clone()
-    }
-
-    fn set_client_options(&self, options: ClientOptions) {
-        let o = options.clone();
-        self.impl_.thread.actor().invoke(move |t: &OnlineFileSourceThread| t.set_client_options(o));
-        *self.impl_.cached_client_options.lock_unpoisoned() = options;
-    }
-
-    fn get_client_options(&self) -> ClientOptions {
-        self.impl_.cached_client_options.lock_unpoisoned().clone()
     }
 }

@@ -39,7 +39,6 @@ use mln_style::sources::tile_source::{RasterDEMSource, RasterSource, UrlOrTilese
 use mln_style_types::SourceType;
 use mln_tile_id::{CanonicalTileID, OverscaledTileID};
 use mln_util::chrono::{Duration, milliseconds};
-use mln_util::client_options::ClientOptions;
 use mln_util::exception::{ExceptionPtr, RuntimeError};
 use mln_util::geo::LatLng;
 use mln_util::identity::SimpleIdentity;
@@ -394,12 +393,6 @@ impl FileSource for PendingTileSource {
 
     fn get_resource_options(&self) -> ResourceOptions {
         ResourceOptions::default()
-    }
-
-    fn set_client_options(&self, _options: ClientOptions) {}
-
-    fn get_client_options(&self) -> ClientOptions {
-        ClientOptions::default()
     }
 }
 

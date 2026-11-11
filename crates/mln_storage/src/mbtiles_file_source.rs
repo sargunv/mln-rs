@@ -9,7 +9,7 @@
 // A database that doesn't open or query, metadata whose zooms or scale don't
 // parse (`std::stoi`/`std::stod` throw), and data that doesn't decompress
 // answer the request with an `Other` error carrying the message, as in
-// maplibre-native-ffi's patched C++. The resource and client options are kept
+// maplibre-native-ffi's patched C++. The resource options are kept
 // next to the thread behind a mutex (C++: in the thread object, read back
 // with a blocking `ask`).
 //
@@ -20,7 +20,6 @@ use std::sync::{Arc, Mutex};
 
 use mln_actor::{ActorRef, Thread};
 use mln_util::chrono::Timestamp;
-use mln_util::client_options::ClientOptions;
 use mln_util::compression::{decompress, is_compressed};
 use mln_util::constants::MBTILES_PROTOCOL;
 use mln_util::sync::MutexExt;
@@ -308,18 +307,15 @@ impl MBTilesFileSourceThread {
 pub struct MBTilesFileSource {
     thread: Thread<MBTilesFileSourceThread>,
     resource_options: Mutex<ResourceOptions>,
-    client_options: Mutex<ClientOptions>,
 }
 
 impl MBTilesFileSource {
-    /// `MBTilesFileSource(const ResourceOptions&, const ClientOptions&)`.
-    pub fn new(resource_options: &ResourceOptions, client_options: &ClientOptions) -> Self {
+    pub fn new(resource_options: &ResourceOptions) -> Self {
         MBTilesFileSource {
             thread: Thread::new("MBTilesFileSource", |_| MBTilesFileSourceThread {
                 db_cache: RefCell::new(VecMap::new()),
             }),
             resource_options: Mutex::new(resource_options.clone()),
-            client_options: Mutex::new(client_options.clone()),
         }
     }
 }
@@ -380,14 +376,6 @@ impl FileSource for MBTilesFileSource {
 
     fn get_resource_options(&self) -> ResourceOptions {
         self.resource_options.lock_unpoisoned().clone()
-    }
-
-    fn set_client_options(&self, options: ClientOptions) {
-        *self.client_options.lock_unpoisoned() = options;
-    }
-
-    fn get_client_options(&self) -> ClientOptions {
-        self.client_options.lock_unpoisoned().clone()
     }
 }
 

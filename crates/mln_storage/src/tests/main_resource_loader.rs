@@ -1,7 +1,6 @@
 // Ports test/storage/main_resource_loader.test.cpp against the test server
-// (mln_test_server; C++: 127.0.0.1:3000). Every test takes
-// `serial()`: they share the FileSourceManager's database and online file
-// sources (and NetworkStatus), and gtest runs one test at a time.
+// (mln_test_server; C++: 127.0.0.1:3000). Every test takes `serial()`:
+// NetworkStatus is process-wide, and gtest runs one test at a time.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -14,7 +13,6 @@ use mln_util::chrono::{Duration, Timestamp, now};
 use mln_util::tile_server_options::TileServerOptions;
 
 use super::{local_callback, req, serial, temp_path};
-use crate::ClientOptions;
 use crate::database_file_source::DatabaseFileSource;
 use crate::file_source::{FileSource, FileSourceType, MAX_CONCURRENT_REQUESTS_KEY};
 use crate::file_source_manager::FileSourceManager;
@@ -25,14 +23,16 @@ use crate::resource_options::ResourceOptions;
 use crate::resource_transform::{FinishedCallback, ResourceTransform};
 use crate::response::{Reason, Response};
 
-fn main_resource_loader() -> Rc<MainResourceLoader> {
-    Rc::new(MainResourceLoader::new(&ResourceOptions::default(), &ClientOptions::default()))
+fn main_resource_loader(file_sources: &FileSourceManager) -> Rc<MainResourceLoader> {
+    Rc::new(MainResourceLoader::new(file_sources, &ResourceOptions::default()))
 }
 
-fn database_file_source() -> Arc<dyn FileSource> {
-    FileSourceManager::get()
-        .get_file_source(FileSourceType::Database, &ResourceOptions::default(), &ClientOptions::default())
-        .expect("database file source")
+fn database_file_source(file_sources: &FileSourceManager) -> Arc<dyn FileSource> {
+    file_sources.get_file_source(FileSourceType::Database, &ResourceOptions::default()).expect("database file source")
+}
+
+fn online_file_source(file_sources: &FileSourceManager) -> Arc<dyn FileSource> {
+    file_sources.get_file_source(FileSourceType::Network, &ResourceOptions::default()).expect("online file source")
 }
 
 fn data(res: &Response) -> &[u8] {
@@ -59,9 +59,10 @@ fn cache_only(url: &str) -> Resource {
 #[test]
 fn cache_response() {
     let _serial = serial();
+    let file_sources = FileSourceManager::new();
     let server = HttpServer::new();
     let run_loop = RunLoop::new();
-    let fs = main_resource_loader();
+    let fs = main_resource_loader(&file_sources);
 
     let resource = Resource::new(Kind::Unknown, server.url("/cache"));
 
@@ -110,9 +111,10 @@ fn cache_response() {
 #[test]
 fn volatile_storage_policy() {
     let _serial = serial();
+    let file_sources = FileSourceManager::new();
     let server = HttpServer::new();
     let run_loop = RunLoop::new();
-    let fs = main_resource_loader();
+    let fs = main_resource_loader(&file_sources);
 
     let mut resource = Resource::new(Kind::Unknown, server.url("/cache"));
     resource.storage_policy = StoragePolicy::Volatile;
@@ -146,9 +148,10 @@ fn volatile_storage_policy() {
 /// CacheRevalidateSame and CacheRevalidateModified share their structure.
 fn cache_revalidate(path: &str, check: fn(&Response)) {
     let _serial = serial();
+    let file_sources = FileSourceManager::new();
     let server = HttpServer::new();
     let run_loop = RunLoop::new();
-    let fs = main_resource_loader();
+    let fs = main_resource_loader(&file_sources);
 
     let revalidate = Resource::new(Kind::Unknown, server.url(path));
     let req1 = req();
@@ -241,9 +244,10 @@ fn cache_revalidate_modified() {
 #[test]
 fn cache_revalidate_etag() {
     let _serial = serial();
+    let file_sources = FileSourceManager::new();
     let server = HttpServer::new();
     let run_loop = RunLoop::new();
-    let fs = main_resource_loader();
+    let fs = main_resource_loader(&file_sources);
 
     let revalidate_etag = Resource::new(Kind::Unknown, server.url("/revalidate-etag"));
     let req1 = req();
@@ -306,9 +310,10 @@ fn cache_revalidate_etag() {
 #[test]
 fn http_issue_1369() {
     let _serial = serial();
+    let file_sources = FileSourceManager::new();
     let server = HttpServer::new();
     let run_loop = RunLoop::new();
-    let fs = main_resource_loader();
+    let fs = main_resource_loader(&file_sources);
 
     let resource = Resource::new(Kind::Unknown, server.url("/test"));
 
@@ -337,8 +342,9 @@ fn http_issue_1369() {
 /// cache-only request whether it has expired or not.
 fn optional_cached(expires: Timestamp) {
     let _serial = serial();
+    let file_sources = FileSourceManager::new();
     let run_loop = RunLoop::new();
-    let fs = main_resource_loader();
+    let fs = main_resource_loader(&file_sources);
 
     let optional_resource = cache_only("http://127.0.0.1:3000/test");
 
@@ -347,7 +353,7 @@ fn optional_cached(expires: Timestamp) {
     response.expires = Some(expires);
 
     let req = req();
-    let dbfs = database_file_source();
+    let dbfs = database_file_source(&file_sources);
     let (r, fs2, stop, resource2, expected) =
         (req.clone(), fs.clone(), run_loop.clone(), optional_resource.clone(), response.clone());
     dbfs.forward(
@@ -391,8 +397,9 @@ fn optional_expired() {
 #[test]
 fn optional_not_found() {
     let _serial = serial();
+    let file_sources = FileSourceManager::new();
     let run_loop = RunLoop::new();
-    let fs = main_resource_loader();
+    let fs = main_resource_loader(&file_sources);
 
     let optional_resource = cache_only("http://127.0.0.1:3000/test");
 
@@ -420,14 +427,15 @@ fn optional_not_found() {
 /// The NoCache* tests: put a fake value into the cache to make sure we're
 /// not retrieving anything from the cache, then request network-only.
 fn no_cache(resource: Resource, check: impl Fn(&Response) + 'static) {
+    let file_sources = FileSourceManager::new();
     let run_loop = RunLoop::new();
-    let fs = main_resource_loader();
+    let fs = main_resource_loader(&file_sources);
 
     let mut response = Response::new();
     response.data = bytes("Cached value");
     response.expires = Some(in_one_hour());
     let req = req();
-    let dbfs = database_file_source();
+    let dbfs = database_file_source(&file_sources);
     let (r, fs2, stop, resource2) = (req.clone(), fs.clone(), run_loop.clone(), resource.clone());
     dbfs.forward(
         &resource,
@@ -576,12 +584,11 @@ impl TransformActor {
 #[test]
 fn set_resource_transform() {
     let _serial = serial();
+    let file_sources = FileSourceManager::new();
     let server = HttpServer::new();
     let run_loop = RunLoop::new();
-    let resource_loader = main_resource_loader();
-    let onlinefs = FileSourceManager::get()
-        .get_file_source(FileSourceType::Network, &ResourceOptions::default(), &ClientOptions::default())
-        .expect("online file source");
+    let resource_loader = main_resource_loader(&file_sources);
+    let onlinefs = online_file_source(&file_sources);
 
     // Translates the URL "localhost://test to http://127.0.0.1:3000/test
     let transform =
@@ -638,9 +645,10 @@ fn set_resource_transform() {
 #[test]
 fn set_resource_cache_path() {
     let _serial = serial();
+    let file_sources = FileSourceManager::new();
     let run_loop = RunLoop::new();
-    let _resource_loader = main_resource_loader();
-    let fs = database_file_source();
+    let _resource_loader = main_resource_loader(&file_sources);
+    let fs = database_file_source(&file_sources);
     // `std::static_pointer_cast<DatabaseFileSource>(fs)`.
     let dbfs = fs.as_any().and_then(|fs| fs.downcast_ref::<DatabaseFileSource>()).expect("DatabaseFileSource");
     let stop = run_loop.handle();
@@ -656,9 +664,10 @@ fn set_resource_cache_path() {
 #[test]
 fn respond_to_stale_must_revalidate() {
     let _serial = serial();
+    let file_sources = FileSourceManager::new();
     let server = HttpServer::new();
     let run_loop = RunLoop::new();
-    let fs = main_resource_loader();
+    let fs = main_resource_loader(&file_sources);
 
     let resource = Rc::new(RefCell::new(Resource::new(Kind::Unknown, server.url("/revalidate-same"))));
     resource.borrow_mut().loading_method = LoadingMethod::CacheOnly;
@@ -672,7 +681,7 @@ fn respond_to_stale_must_revalidate() {
     response.must_revalidate = true;
     response.etag = Some("snowfall".to_owned());
     let req = req();
-    let dbfs = database_file_source();
+    let dbfs = database_file_source(&file_sources);
     let (r, fs2, stop, resource2) = (req.clone(), fs.clone(), run_loop.clone(), resource.clone());
     let forwarded = resource.borrow().clone();
     dbfs.forward(
@@ -753,19 +762,18 @@ fn respond_to_stale_must_revalidate() {
 #[test]
 fn cached_resource_low_priority() {
     let _serial = serial();
+    let file_sources = FileSourceManager::new();
     let server = HttpServer::new();
     let run_loop = RunLoop::new();
-    let fs = main_resource_loader();
+    let fs = main_resource_loader(&file_sources);
 
     let mut response = Response::new();
     let online_response_counter = Rc::new(Cell::new(0usize));
 
     response.expires = Some(one_hour_ago());
 
-    let dbfs = database_file_source();
-    let online_fs = FileSourceManager::get()
-        .get_file_source(FileSourceType::Network, &ResourceOptions::default(), &ClientOptions::default())
-        .expect("online file source");
+    let dbfs = database_file_source(&file_sources);
+    let online_fs = online_file_source(&file_sources);
 
     // Put existing values into the cache.
     let resource1 = Resource::with_tile_data(Kind::Unknown, server.url("/load/3"), None, LoadingMethod::All);
@@ -869,9 +877,10 @@ fn cached_resource_low_priority() {
 #[test]
 fn no_double_dispatch() {
     let _serial = serial();
+    let file_sources = FileSourceManager::new();
     let server = HttpServer::new();
     let run_loop = RunLoop::new();
-    let fs = main_resource_loader();
+    let fs = main_resource_loader(&file_sources);
 
     let resource = Resource::new(Kind::Unknown, server.url("/revalidate-same"));
     let mut response = Response::new();
@@ -880,7 +889,7 @@ fn no_double_dispatch() {
 
     let req = req();
     let response_count = Rc::new(Cell::new(0u32));
-    let dbfs = database_file_source();
+    let dbfs = database_file_source(&file_sources);
     let (r, fs2, resource2, count) = (req.clone(), fs.clone(), resource.clone(), response_count.clone());
     dbfs.forward(
         &resource,
@@ -917,10 +926,10 @@ fn no_double_dispatch() {
 fn resource_options() {
     let _serial = serial();
     let fs = MainResourceLoader::new(
+        &FileSourceManager::new(),
         &ResourceOptions::default().with_tile_server_options(
             TileServerOptions::new().with_base_url("originalBaseURL").with_uri_scheme_alias("originalAlias"),
         ),
-        &ClientOptions::default(),
     );
 
     fs.set_resource_options(ResourceOptions::default().with_tile_server_options(
@@ -939,7 +948,7 @@ fn resource_options() {
 fn unsupported_resource_request() {
     let _serial = serial();
     let run_loop = RunLoop::new();
-    let fs = MainResourceLoader::new(&ResourceOptions::default(), &ClientOptions::default());
+    let fs = MainResourceLoader::new(&FileSourceManager::new(), &ResourceOptions::default());
     let resource = Resource::with_tile_data(Kind::Unknown, "http://example.com/x.json", None, LoadingMethod::None);
     let result: Rc<RefCell<Option<Response>>> = Rc::new(RefCell::new(None));
     let (out, stop) = (result.clone(), run_loop.clone());

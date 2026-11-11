@@ -38,7 +38,7 @@ use mln_map::{
     MapObserver, MapOptions,
 };
 use mln_renderer::Renderer;
-use mln_storage::{ClientOptions, DatabaseFileSource, FileSource, FileSourceManager, FileSourceType, ResourceOptions};
+use mln_storage::{DatabaseFileSource, FileSource, FileSourceManager, FileSourceType, ResourceOptions};
 use mln_util::chrono::{Clock, Duration};
 use mln_util::geo::{LatLng, ScreenCoordinate};
 use mln_util::logging::{Event, Log};
@@ -224,12 +224,11 @@ pub(crate) fn run(launch: Launch) {
         .with_cache_path(cache_db)
         .with_api_key(apikey)
         .with_tile_server_options(TileServerOptions::map_tiler_configuration());
-    let client_options = ClientOptions::default();
 
-    let manager = FileSourceManager::get();
-    let database_file_source = manager.get_file_source(FileSourceType::Database, &resource_options, &client_options);
+    let file_sources = FileSourceManager::new();
+    let database_file_source = file_sources.get_file_source(FileSourceType::Database, &resource_options);
     if !settings.online {
-        match manager.get_file_source(FileSourceType::Network, &resource_options, &client_options) {
+        match file_sources.get_file_source(FileSourceType::Network, &resource_options) {
             Some(online) => {
                 online.set_property("online-status", &feature::Value::Bool(false));
                 Log::warning(Event::Setup, "Application is offline.");
@@ -252,8 +251,8 @@ pub(crate) fn run(launch: Launch) {
         &frontend,
         Rc::new(Observer { shared: shared.clone() }),
         MapOptions::new().with_size(map_size).with_pixel_ratio(pixel_ratio as f32),
+        &file_sources,
         &resource_options,
-        &client_options,
     ) {
         Ok(map) => map,
         Err(e) => {

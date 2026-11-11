@@ -1,17 +1,17 @@
 // Ports render-test/file_source.hpp and render-test/file_source.cpp
-// (`ProxyFileSource`), plus `TestRunner::registerProxyFileSource`
-// (render-test/runner.cpp).
+// (`ProxyFileSource`), plus the file sources of
+// `TestRunner::registerProxyFileSource` (render-test/runner.cpp).
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, Once};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use feature::Value;
 use mln_storage::file_source::READ_ONLY_MODE_KEY;
 use mln_storage::{
-    AsyncRequest, Callback, ClientOptions, FileSource, FileSourceManager, FileSourceType, Kind, LoadingMethod,
-    Resource, ResourceOptions, Response,
+    AsyncRequest, Callback, FileSource, FileSourceManager, FileSourceType, Kind, LoadingMethod, Resource,
+    ResourceOptions, Response,
 };
 use mln_util::logging::{Event, Log};
 
@@ -58,28 +58,22 @@ impl Drop for PendingRequest {
 pub struct ProxyFileSource {
     default_resource_loader: Arc<dyn FileSource>,
     resource_options: Mutex<ResourceOptions>,
-    client_options: Mutex<ClientOptions>,
 }
 
 impl ProxyFileSource {
-    /// `ProxyFileSource(std::shared_ptr<FileSource>, const ResourceOptions&, const ClientOptions&)`.
+    /// A proxy over `default_resource_loader`. While offline, it makes
+    /// `file_sources`' database for these options read-only.
     pub fn new(
         default_resource_loader: Arc<dyn FileSource>,
+        file_sources: &FileSourceManager,
         resource_options: &ResourceOptions,
-        client_options: &ClientOptions,
     ) -> Self {
         if OFFLINE.load(Ordering::SeqCst) {
-            if let Some(dbfs) =
-                FileSourceManager::get().get_file_source(FileSourceType::Database, resource_options, client_options)
-            {
+            if let Some(dbfs) = file_sources.get_file_source(FileSourceType::Database, resource_options) {
                 dbfs.set_property(READ_ONLY_MODE_KEY, &Value::Bool(true));
             }
         }
-        ProxyFileSource {
-            default_resource_loader,
-            resource_options: Mutex::new(resource_options.clone()),
-            client_options: Mutex::new(client_options.clone()),
-        }
+        ProxyFileSource { default_resource_loader, resource_options: Mutex::new(resource_options.clone()) }
     }
 
     /// Flag to change the networking mode of the file source.
@@ -192,32 +186,21 @@ impl FileSource for ProxyFileSource {
     fn get_resource_options(&self) -> ResourceOptions {
         self.resource_options.lock().unwrap().clone()
     }
-
-    fn set_client_options(&self, options: ClientOptions) {
-        *self.client_options.lock().unwrap() = options;
-    }
-
-    fn get_client_options(&self) -> ClientOptions {
-        self.client_options.lock().unwrap().clone()
-    }
 }
 
-/// `TestRunner::registerProxyFileSource()`: wraps the default
-/// `ResourceLoader` factory (once per process).
-pub fn register_proxy_file_source() {
-    static REGISTER_PROXY_FLAG: Once = Once::new();
-    REGISTER_PROXY_FLAG.call_once(|| {
-        let file_source_manager = FileSourceManager::get();
-
-        let resource_loader_factory = file_source_manager
-            .un_register_file_source_factory(FileSourceType::ResourceLoader)
-            .expect("default ResourceLoader factory");
-        file_source_manager.register_file_source_factory(
-            FileSourceType::ResourceLoader,
-            Arc::new(move |resource_options: &ResourceOptions, client_options: &ClientOptions| {
-                let file_source = resource_loader_factory(resource_options, client_options);
-                Arc::new(ProxyFileSource::new(file_source, resource_options, client_options)) as Arc<dyn FileSource>
-            }),
-        );
-    });
+/// File sources whose `ResourceLoader` is a [`ProxyFileSource`] over the
+/// default one (`TestRunner::registerProxyFileSource()`).
+pub fn proxy_file_sources() -> FileSourceManager {
+    let file_sources = FileSourceManager::new();
+    let resource_loader_factory = file_sources
+        .unregister_file_source_factory(FileSourceType::ResourceLoader)
+        .expect("default ResourceLoader factory");
+    file_sources.register_file_source_factory(
+        FileSourceType::ResourceLoader,
+        Arc::new(move |file_sources: &FileSourceManager, resource_options: &ResourceOptions| {
+            let file_source = resource_loader_factory(file_sources, resource_options);
+            Arc::new(ProxyFileSource::new(file_source, file_sources, resource_options)) as Arc<dyn FileSource>
+        }),
+    );
+    file_sources
 }

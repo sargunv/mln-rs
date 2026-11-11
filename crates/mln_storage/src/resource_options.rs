@@ -12,9 +12,6 @@ pub struct ResourceOptions {
     cache_path: String,
     asset_path: String,
     maximum_size: u64,
-    /// `void* platformContext`, as an opaque integer (it only takes part in
-    /// the FileSourceManager's cache key).
-    platform_context: usize,
 }
 
 impl Default for ResourceOptions {
@@ -26,7 +23,6 @@ impl Default for ResourceOptions {
             cache_path: ":memory:".to_owned(),
             asset_path: ".".to_owned(),
             maximum_size: DEFAULT_MAX_CACHE_SIZE,
-            platform_context: 0,
         }
     }
 }
@@ -82,15 +78,6 @@ impl ResourceOptions {
 
     pub fn maximum_cache_size(&self) -> u64 {
         self.maximum_size
-    }
-
-    pub fn with_platform_context(mut self, context: usize) -> Self {
-        self.platform_context = context;
-        self
-    }
-
-    pub fn platform_context(&self) -> usize {
-        self.platform_context
     }
 
     /// `ResourceOptions::Default()`.

@@ -10,7 +10,6 @@ use std::sync::{Arc, Mutex};
 use mln_actor::{RunLoop, Thread};
 
 use super::{cpp_path, req};
-use crate::ClientOptions;
 use crate::asset_file_source::AssetFileSource;
 use crate::async_request::AsyncRequest;
 use crate::file_source::FileSource;
@@ -21,7 +20,6 @@ use crate::response::{Reason, Response};
 fn asset_file_source() -> AssetFileSource {
     AssetFileSource::new(
         &ResourceOptions::default_options().with_asset_path(cpp_path("test/fixtures/storage/assets").to_str().unwrap()),
-        &ClientOptions::default(),
     )
 }
 

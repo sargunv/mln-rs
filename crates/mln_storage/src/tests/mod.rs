@@ -6,6 +6,7 @@
 mod asset_file_source;
 #[cfg(feature = "sqlite")]
 mod database_file_source;
+mod file_source_manager;
 mod http_file_source;
 mod local_file_source;
 // The C++ MainResourceLoader tests assume its Database file source.
@@ -38,8 +39,8 @@ pub fn req() -> Req {
 }
 
 /// Serializes the tests that use process-wide state (NetworkStatus, the
-/// FileSourceManager's shared file sources): gtest runs one test at a time,
-/// the Rust harness runs them in parallel.
+/// log observer): gtest runs one test at a time, the Rust harness runs them
+/// in parallel.
 pub fn serial() -> MutexGuard<'static, ()> {
     static LOCK: Mutex<()> = Mutex::new(());
     LOCK.lock().unwrap_or_else(|e| e.into_inner())

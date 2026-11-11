@@ -1,7 +1,6 @@
 // Ports include/mln/storage/file_source.hpp.
 
 use feature::Value;
-use mln_util::client_options::ClientOptions;
 
 use crate::async_request::AsyncRequest;
 use crate::http_header_transform::HttpHeaderTransform;
@@ -89,12 +88,11 @@ pub trait FileSource: Send + Sync {
     fn set_resource_options(&self, options: ResourceOptions);
     fn get_resource_options(&self) -> ResourceOptions;
 
-    fn set_client_options(&self, options: ClientOptions);
-    fn get_client_options(&self) -> ClientOptions;
-
-    /// Port-only: the concrete file source, for C++'s
-    /// `std::static_pointer_cast<DatabaseFileSource>(fileSource)` on a file
-    /// source from the FileSourceManager. `None` unless overridden.
+    /// The concrete file source, to reach the API of a specific type (such
+    /// as the database's) on one from a [`FileSourceManager`]. `None` unless
+    /// overridden.
+    ///
+    /// [`FileSourceManager`]: crate::FileSourceManager
     fn as_any(&self) -> Option<&dyn std::any::Any> {
         None
     }

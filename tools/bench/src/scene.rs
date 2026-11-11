@@ -7,7 +7,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
 use std::path::Path;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use feature::{Value, ValueObject};
@@ -17,7 +17,7 @@ use mln_gfx::{ContextMode, SwapBehaviour};
 use mln_headless::HeadlessFrontend;
 use mln_map::{CameraOptions, Map, MapLoadError, MapMode, MapObserver, MapOptions, RenderFrameStatus, RenderMode};
 use mln_renderer::query::SourceQueryOptions;
-use mln_storage::{ClientOptions, FileSource, FileSourceManager, FileSourceType, ResourceOptions};
+use mln_storage::{FileSource, FileSourceManager, FileSourceType, ResourceOptions};
 use mln_style_types::VisibilityType;
 use mln_text::GlyphCache;
 use mln_util::feature::feature_id_to_string;
@@ -148,6 +148,19 @@ impl MapObserver for Observer {
     }
 }
 
+/// The file sources every scene shares: the render suite's proxy over its
+/// cache database, with the tile latency of [`crate::latency`].
+fn file_sources() -> FileSourceManager {
+    static FILE_SOURCES: OnceLock<FileSourceManager> = OnceLock::new();
+    FILE_SOURCES
+        .get_or_init(|| {
+            let file_sources = render_test::file_source::proxy_file_sources();
+            crate::latency::register(&file_sources);
+            file_sources
+        })
+        .clone()
+}
+
 pub struct Scene {
     frontend: HeadlessFrontend,
     map: Map,
@@ -164,11 +177,9 @@ impl Scene {
 
     /// A map whose renderer shares `glyph_cache`.
     pub fn with_glyph_cache(size: Size, mode: Mode, glyph_cache: Arc<GlyphCache>) -> Scene {
-        render_test::file_source::register_proxy_file_source();
-        crate::latency::register();
+        let file_sources = file_sources();
         let cache = Path::new(env!("CARGO_MANIFEST_DIR")).join("../render-test/testdata/metrics/cache-style.db");
         let resource_options = ResourceOptions::default().with_cache_path(cache.display().to_string());
-        let client_options = ClientOptions::default();
         let frontend = HeadlessFrontend::with_glyph_cache(
             size,
             1.0,
@@ -177,19 +188,15 @@ impl Scene {
             mode != Mode::OnDemand,
             glyph_cache,
         );
-        let file_source = FileSourceManager::get().get_file_source(
-            FileSourceType::ResourceLoader,
-            &resource_options,
-            &client_options,
-        );
+        let file_source = file_sources.get_file_source(FileSourceType::ResourceLoader, &resource_options);
         let observer = Rc::new(Observer::default());
         let map_mode = if mode == Mode::Still { MapMode::Static } else { MapMode::Continuous };
         let map = Map::with_resource_options(
             &frontend,
             observer.clone(),
             MapOptions::new().with_map_mode(map_mode).with_size(size).with_pixel_ratio(1.0),
+            &file_sources,
             &resource_options,
-            &client_options,
         )
         .expect("the map");
         Scene { frontend, map, observer, _file_source: file_source }

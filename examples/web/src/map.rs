@@ -17,7 +17,6 @@ use mln_map::{
 use mln_renderer::text::font_face_engine;
 use mln_renderer::tile::worker_codec::{Encoded, SerializingTransport, WorkerInstances};
 use mln_renderer::{Renderer, RendererFrontend, RendererObserver, UpdateParameters};
-use mln_storage::{ClientOptions, ResourceOptions};
 use mln_util::LatLng;
 use mln_util::chrono::Duration;
 use mln_util::geo::ScreenCoordinate;
@@ -253,12 +252,10 @@ impl WebMap {
             dirty: Cell::new(false),
         }));
         let observer = Rc::new(ConsoleMapObserver::default());
-        let map = Map::with_resource_options(
+        let map = Map::new(
             &frontend,
             observer.clone(),
             MapOptions::new().with_size(size).with_pixel_ratio(pixel_ratio as f32),
-            &ResourceOptions::default(),
-            &ClientOptions::default(),
         )
         .map_err(js_error)?;
         Ok(WebMap {

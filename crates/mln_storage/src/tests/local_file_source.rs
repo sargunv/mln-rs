@@ -7,7 +7,6 @@ use mln_actor::RunLoop;
 use mln_util::constants::FILE_PROTOCOL;
 
 use super::{cpp_path, req, temp_path};
-use crate::ClientOptions;
 use crate::file_source::FileSource;
 use crate::local_file_source::LocalFileSource;
 use crate::resource::{Kind, Resource};
@@ -46,7 +45,7 @@ fn to_absolute_url(file_name: &str) -> String {
 }
 
 fn local_file_source() -> LocalFileSource {
-    LocalFileSource::new(&ResourceOptions::default_options(), &ClientOptions::default())
+    LocalFileSource::new(&ResourceOptions::default_options())
 }
 
 /// Requests `resource`, runs the loop until the response and returns it

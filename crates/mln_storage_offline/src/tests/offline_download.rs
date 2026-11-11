@@ -18,9 +18,7 @@ use mln_storage::online_file_source::OnlineFileSource;
 use mln_storage::resource::{Priority, Usage};
 use mln_storage::response::{Error, Reason};
 use mln_storage::stub_file_source::{ResponseType, StubFileSource};
-use mln_storage::{
-    AsyncRequest, Callback, ClientOptions, FileSource, Kind, LoadingMethod, Resource, ResourceOptions, Response,
-};
+use mln_storage::{AsyncRequest, Callback, FileSource, Kind, LoadingMethod, Resource, ResourceOptions, Response};
 use mln_text::glyph::NON_IDEOGRAPH_GLYPH_RANGES_PER_FONT_STACK;
 use mln_util::chrono::{Timestamp, now};
 use mln_util::compression::compress;
@@ -422,7 +420,6 @@ struct FakeOnlineFileSource {
     next_id: std::sync::atomic::AtomicU64,
     online_fs: OnlineFileSource,
     resource_options: Mutex<ResourceOptions>,
-    client_options: Mutex<ClientOptions>,
 }
 
 impl FakeOnlineFileSource {
@@ -430,9 +427,8 @@ impl FakeOnlineFileSource {
         FakeOnlineFileSource {
             requests: LocalObject::new(RefCell::new(Vec::new())),
             next_id: std::sync::atomic::AtomicU64::new(0),
-            online_fs: OnlineFileSource::new(&ResourceOptions::default_options(), &ClientOptions::default()),
+            online_fs: OnlineFileSource::new(&ResourceOptions::default_options()),
             resource_options: Mutex::new(ResourceOptions::default_options()),
-            client_options: Mutex::new(ClientOptions::default()),
         }
     }
 
@@ -487,14 +483,6 @@ impl FileSource for FakeOnlineFileSource {
 
     fn get_resource_options(&self) -> ResourceOptions {
         self.resource_options.lock().unwrap().clone()
-    }
-
-    fn set_client_options(&self, options: ClientOptions) {
-        *self.client_options.lock().unwrap() = options;
-    }
-
-    fn get_client_options(&self) -> ClientOptions {
-        self.client_options.lock().unwrap().clone()
     }
 }
 

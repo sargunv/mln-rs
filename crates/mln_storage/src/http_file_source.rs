@@ -39,7 +39,6 @@ use std::sync::{Arc, Mutex};
 
 use mln_actor::{ActorRef, Mailbox, scheduler};
 use mln_util::chrono::{Timestamp, parse_timestamp_str};
-use mln_util::client_options::ClientOptions;
 use mln_util::http_header::{CacheControl, parse_retry_headers};
 use mln_util::string::to_string_i64;
 use mln_util::sync::MutexExt;
@@ -121,7 +120,6 @@ struct Impl {
     transport: Arc<dyn HttpTransport>,
     header_transform: Mutex<HttpHeaderTransform>,
     resource_options: Mutex<ResourceOptions>,
-    client_options: Mutex<ClientOptions>,
 }
 
 /// `headerMatches(header, buffer, length)`: ASCII-case-insensitive prefix.
@@ -349,15 +347,14 @@ pub struct HTTPFileSource {
 }
 
 impl HTTPFileSource {
-    /// `HTTPFileSource(const ResourceOptions&, const ClientOptions&)`, with
-    /// the transport `set_transport` set, else the platform's default.
-    pub fn new(resource_options: &ResourceOptions, client_options: &ClientOptions) -> Self {
+    /// An HTTP file source over the transport `set_transport` set, else
+    /// the platform's default.
+    pub fn new(resource_options: &ResourceOptions) -> Self {
         HTTPFileSource {
             impl_: Impl {
                 transport: current_transport(),
                 header_transform: Mutex::new(HttpHeaderTransform::default()),
                 resource_options: Mutex::new(resource_options.clone()),
-                client_options: Mutex::new(client_options.clone()),
             },
         }
     }
@@ -399,13 +396,5 @@ impl FileSource for HTTPFileSource {
 
     fn get_resource_options(&self) -> ResourceOptions {
         self.impl_.resource_options.lock_unpoisoned().clone()
-    }
-
-    fn set_client_options(&self, options: ClientOptions) {
-        *self.impl_.client_options.lock_unpoisoned() = options;
-    }
-
-    fn get_client_options(&self) -> ClientOptions {
-        self.impl_.client_options.lock_unpoisoned().clone()
     }
 }
