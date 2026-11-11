@@ -35,8 +35,9 @@ pub trait FontFaceEngine: Send + Sync {
     fn prepare(&self, ready: Box<dyn FnOnce(Result<(), String>) + Send>);
 
     /// `HBShaper(type, fontFileData)`, once `prepare` reported the engine
-    /// ready: `None` when `data` isn't a font the engine can read.
-    fn load(&self, type_: GlyphIDType, data: &[u8]) -> Option<Box<dyn FontFaceShaper>>;
+    /// ready: `None` when `data` isn't a font the engine can read. The
+    /// shaper may keep `data` (the response's bytes) instead of copying it.
+    fn load(&self, type_: GlyphIDType, data: Arc<Vec<u8>>) -> Option<Box<dyn FontFaceShaper>>;
 }
 
 static ENGINE: Mutex<Option<Arc<dyn FontFaceEngine>>> = Mutex::new(None);
@@ -75,7 +76,7 @@ fn default_engine() -> Arc<dyn FontFaceEngine> {
                 .to_owned()));
         }
 
-        fn load(&self, _type: GlyphIDType, _data: &[u8]) -> Option<Box<dyn FontFaceShaper>> {
+        fn load(&self, _type: GlyphIDType, _data: Arc<Vec<u8>>) -> Option<Box<dyn FontFaceShaper>> {
             None
         }
     }
@@ -84,6 +85,8 @@ fn default_engine() -> Arc<dyn FontFaceEngine> {
 
 #[cfg(feature = "font-face-shaper")]
 mod in_process {
+    use std::sync::Arc;
+
     use mln_text::glyph::{Glyph, GlyphID, GlyphIDType};
     use mln_text::{FreeTypeLibrary, HBShapeAdjust, HBShaper};
 
@@ -98,7 +101,7 @@ mod in_process {
         }
 
         /// `loadHBShaper`'s `HBShaper(type, data, ftLibrary)` and `valid()`.
-        fn load(&self, type_: GlyphIDType, data: &[u8]) -> Option<Box<dyn FontFaceShaper>> {
+        fn load(&self, type_: GlyphIDType, data: Arc<Vec<u8>>) -> Option<Box<dyn FontFaceShaper>> {
             let shaper = HBShaper::new(type_, data, &FreeTypeLibrary::new());
             shaper.valid().then(|| Box::new(shaper) as Box<dyn FontFaceShaper>)
         }

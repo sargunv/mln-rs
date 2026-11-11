@@ -332,8 +332,7 @@ impl GlyphManager {
                         }
                     }
                 } else {
-                    let data: &[u8] = res.data.as_deref().map(|d| d.as_slice()).unwrap_or(&[]);
-                    if self.load_hb_shaper(font_stack, range.type_, data) {
+                    if self.load_hb_shaper(font_stack, range.type_, res.data.clone().unwrap_or_default()) {
                         vec![Glyph { id: GlyphID::with_type(0, range.type_), ..Glyph::default() }]
                     } else {
                         Vec::new()
@@ -522,7 +521,7 @@ impl GlyphManager {
 
     /// `loadHBShaper(fontStack, type, data)`: false, as for an invalid
     /// font, when the engine failed to get ready.
-    fn load_hb_shaper(&self, font_stack: &FontStack, type_: GlyphIDType, data: &[u8]) -> bool {
+    fn load_hb_shaper(&self, font_stack: &FontStack, type_: GlyphIDType, data: Arc<Vec<u8>>) -> bool {
         if !self.engine_readiness.is_ready() {
             return false;
         }

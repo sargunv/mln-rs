@@ -24,9 +24,10 @@ fn start() {
     std::panic::set_hook(Box::new(|info| error(&info.to_string())));
 }
 
-/// `HBShaper(type, fontFileData)`: undefined unless `data` is a font.
+/// `HBShaper(type, fontFileData)`: undefined unless `data` is a font. The
+/// face keeps `data` instead of copying it.
 #[wasm_bindgen(js_name = openFace)]
-pub fn open_face(type_: u16, data: &[u8]) -> Option<Face> {
+pub fn open_face(type_: u16, data: Vec<u8>) -> Option<Face> {
     let shaper = HBShaper::new(GlyphIDType(type_), data, &FreeTypeLibrary::new());
     shaper.valid().then_some(Face { shaper, type_: GlyphIDType(type_) })
 }
