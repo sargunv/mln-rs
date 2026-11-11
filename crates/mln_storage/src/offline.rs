@@ -18,15 +18,11 @@ use serde_json::Value as Json;
 use crate::response::ResourceError;
 
 fn check_definition(min_zoom: f64, max_zoom: f64, pixel_ratio: f32) -> Result<(), Error> {
-    if min_zoom < 0.0
-        || max_zoom < 0.0
-        || max_zoom < min_zoom
-        || pixel_ratio < 0.0
-        || !min_zoom.is_finite()
-        || max_zoom.is_nan()
-        || !pixel_ratio.is_finite()
-    {
-        return Err(Error::invalid_argument("Invalid offline region definition"));
+    if !min_zoom.is_finite() || min_zoom < 0.0 || max_zoom.is_nan() || max_zoom < min_zoom {
+        return Err(Error::invalid_argument("offline region zoom range is invalid"));
+    }
+    if !pixel_ratio.is_finite() || pixel_ratio < 0.0 {
+        return Err(Error::invalid_argument("offline region pixel ratio is invalid"));
     }
     Ok(())
 }

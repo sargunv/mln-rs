@@ -1,11 +1,14 @@
 //! The offline regions in a runtime's cache database.
 
+use std::path::Path;
+
 use mln_actor::RunLoopHandle;
 use mln_storage::ResourceError;
 use mln_storage::offline::{
     OfflineRegion, OfflineRegionDefinition, OfflineRegionDownloadState, OfflineRegionMetadata, OfflineRegionObserver,
     OfflineRegionStatus,
 };
+use mln_storage::sqlite3::{Database, OpenFlag};
 use mln_storage_offline::DatabaseFileSourceExt;
 use mln_util::error::Error;
 
@@ -54,12 +57,17 @@ impl<'a> Offline<'a> {
 
     /// Copies the regions of another cache database into this one, and gives
     /// this database's copy of each. A region that this database has already
-    /// isn't copied again.
+    /// isn't copied again. The other database only needs to be readable.
+    ///
+    /// Fails with [`ErrorKind::InvalidArgument`](mln_util::ErrorKind) when
+    /// `side_database_path` names no database file that opens for reading.
+    /// That check opens the file on the calling thread.
     pub fn merge_regions(
         &self,
         side_database_path: impl Into<String>,
     ) -> Result<Completion<Vec<OfflineRegion>>, Error> {
         let side_database_path = side_database_path.into();
+        check_side_database(&side_database_path)?;
         self.runtime.offline_command(move |database, core, resolver| {
             database.merge_offline_regions(&side_database_path, reply_on(core.run_loop.clone(), resolver));
         })
@@ -126,6 +134,17 @@ impl<'a> Offline<'a> {
             database.delete_offline_region(region_id, reply_on(core.run_loop.clone(), resolver));
         })
     }
+}
+
+/// Checks that `path` names an existing database file that opens for
+/// reading. SQLite would otherwise take an empty path, `:memory:` or a
+/// `file:` URI for an in-memory database, and create a missing file.
+fn check_side_database(path: &str) -> Result<(), Error> {
+    let unreadable = || Error::invalid_argument("side database path must name an existing readable database file");
+    if path.is_empty() || path.starts_with(':') || path.starts_with("file:") || !Path::new(path).is_file() {
+        return Err(unreadable());
+    }
+    Database::try_open(path, OpenFlag::ReadOnly).map(drop).map_err(|_| unreadable())
 }
 
 /// Sends an observed region's download events to the runtime's handler, on

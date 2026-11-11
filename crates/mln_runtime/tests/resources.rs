@@ -187,6 +187,31 @@ fn cache_operations_run_on_the_cache_file() {
 }
 
 #[test]
+fn a_merge_takes_only_a_readable_database_file() {
+    let dir = TempDir::new();
+    let side = dir.path("side.db");
+    let missing = dir.path("missing.db");
+    let bounds = LatLngBounds::hull(LatLng::new(1.0, 2.0).unwrap(), LatLng::new(3.0, 4.0).unwrap());
+    let definition =
+        OfflineTilePyramidRegionDefinition::new("custom://style.json", bounds, 0.0, 0.0, 1.0, false).unwrap().into();
+    let writer = Runtime::new(RuntimeOptions { cache_path: Some(side.clone()), ..RuntimeOptions::default() }).unwrap();
+    wait(writer.offline().create_region(definition, b"side".to_vec()));
+    wait(writer.release());
+
+    let runtime = runtime();
+    let offline = runtime.offline();
+    for path in [missing.to_str().unwrap(), "", ":memory:", "file::memory:"] {
+        let error = offline.merge_regions(path).unwrap_err();
+        assert_eq!(ErrorKind::InvalidArgument, error.kind, "{path}");
+        assert!(error.message.contains("readable database file"), "{}", error.message);
+    }
+    assert!(!missing.exists());
+    let merged = wait(offline.merge_regions(side.to_str().unwrap()));
+    assert_eq!(vec![b"side".to_vec()], merged.iter().map(|region| region.get_metadata().clone()).collect::<Vec<_>>());
+    assert_eq!(merged, wait(offline.regions()));
+}
+
+#[test]
 fn an_offline_region_downloads_and_reports_its_progress() {
     let server = MockServer::start();
     server.mock(|when, then| {
