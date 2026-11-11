@@ -17,7 +17,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use mln_gfx::index_vector::IndexVectorBase;
 use mln_gfx::shader_group::{ShaderGroupPtr, StringIDSetsPair};
 use mln_gfx::shaders::shader_defines::*;
 use mln_gfx::vertex_attribute::VertexAttributeArray;
@@ -42,6 +41,7 @@ use mln_util::sync::RwLockExt;
 use super::collision_layer_tweaker::{CollisionDrawableData, CollisionLayerTweaker};
 use super::symbol_layer_tweaker::SymbolLayerTweaker;
 use super::{TileDrawables, drawable_binders_slot, drawable_render_tile_slot, shared_vertices};
+use crate::bucket_geometry::{BucketGeometry, bucket_vertices, paint_vertices, released_indexes};
 use crate::buckets::symbol_bucket::{
     Buffer, CollisionBoxDynamicVertex, CollisionBoxLayoutVertex, CollisionBuffer, PaintProperties, SymbolBucket,
 };
@@ -159,7 +159,10 @@ pub fn text_property_values(
 
 /// `updateTileAttributes(buffer, isText, paintProps, evaluated, attribs,
 /// propertiesAsUniforms)`.
+#[allow(clippy::too_many_arguments)]
 fn update_tile_attributes(
+    geometry: Option<&BucketGeometry>,
+    bucket: &SymbolBucket,
     buffer: &Buffer,
     is_text: bool,
     paint_props: &PaintProperties,
@@ -167,12 +170,14 @@ fn update_tile_attributes(
     attribs: &mut VertexAttributeArray,
     properties_as_uniforms: &mut StringIDSetsPair,
 ) {
-    set_binder_attributes(is_text, paint_props, evaluated, attribs, properties_as_uniforms);
-    set_static_and_dynamic_attributes(buffer, attribs);
+    set_binder_attributes(geometry, bucket, is_text, paint_props, evaluated, attribs, properties_as_uniforms);
+    set_static_and_dynamic_attributes(geometry, bucket, buffer, attribs);
 }
 
 /// The data-driven paint property half of `updateTileAttributes`.
 fn set_binder_attributes(
+    geometry: Option<&BucketGeometry>,
+    bucket: &SymbolBucket,
     is_text: bool,
     paint_props: &PaintProperties,
     evaluated: &SymbolPaintProperties::PossiblyEvaluated,
@@ -184,7 +189,7 @@ fn set_binder_attributes(
     if is_text {
         let b = &paint_props.text_binders;
         let ib = &b.interleaved_vertex_buffer;
-        let shared = shared_vertices(&ib.shared_vertex_vector);
+        let shared = paint_vertices(geometry, bucket, ib, b.depends_on_feature_state());
         read_data_driven_paint_property(
             attribs,
             &b.text_opacity,
@@ -238,7 +243,7 @@ fn set_binder_attributes(
     } else {
         let b = &paint_props.icon_binders;
         let ib = &b.interleaved_vertex_buffer;
-        let shared = shared_vertices(&ib.shared_vertex_vector);
+        let shared = paint_vertices(geometry, bucket, ib, b.depends_on_feature_state());
         read_data_driven_paint_property(
             attribs,
             &b.icon_opacity,
@@ -293,16 +298,26 @@ fn set_binder_attributes(
 }
 
 /// The vertex-buffer half of `updateTileAttributes`.
-fn set_static_and_dynamic_attributes(buffer: &Buffer, attribs: &mut VertexAttributeArray) {
-    set_layout_attributes(buffer, attribs);
+fn set_static_and_dynamic_attributes(
+    geometry: Option<&BucketGeometry>,
+    bucket: &SymbolBucket,
+    buffer: &Buffer,
+    attribs: &mut VertexAttributeArray,
+) {
+    set_layout_attributes(geometry, bucket, buffer, attribs);
     set_projected_pos_attribute(buffer, attribs);
     set_fade_opacity_attribute(buffer, attribs);
 }
 
 /// The static half of `updateTileAttributes`: the layout vertices.
-fn set_layout_attributes(buffer: &Buffer, attribs: &mut VertexAttributeArray) {
+fn set_layout_attributes(
+    geometry: Option<&BucketGeometry>,
+    bucket: &SymbolBucket,
+    buffer: &Buffer,
+    attribs: &mut VertexAttributeArray,
+) {
     let layout_size = std::mem::size_of::<crate::buckets::symbol_bucket::SymbolLayoutVertex>() as u32;
-    let layout_data = shared_vertices(&buffer.attribute_data);
+    let layout_data = bucket_vertices(geometry, bucket, &buffer.attribute_data);
     if let Some(attr) = attribs.set(ID_SYMBOL_POS_OFFSET_ATTRIBUTE, -1, AttributeDataType::Invalid, 0) {
         attr.set_shared_raw_data(Some(layout_data.clone()), 0, 0, layout_size, AttributeDataType::Short4);
     }
@@ -355,6 +370,7 @@ struct DrawableRefresh {
 /// attribute array, which is refreshed once (`refreshed_attributes`).
 fn update_tile_drawable(
     drawable: &mut dyn mln_gfx::Drawable,
+    geometry: Option<&BucketGeometry>,
     bucket: &SymbolBucket,
     layer_id: &str,
     evaluated: &SymbolPaintProperties::PossiblyEvaluated,
@@ -403,7 +419,15 @@ fn update_tile_drawable(
                 if let Some(paint_props) = bucket.paint_properties.get(layer_id) {
                     let paint_props = paint_props.read_unpoisoned();
                     let mut properties_as_uniforms = StringIDSetsPair::default();
-                    set_binder_attributes(is_text, &paint_props, evaluated, &mut attrs, &mut properties_as_uniforms);
+                    set_binder_attributes(
+                        geometry,
+                        bucket,
+                        is_text,
+                        &paint_props,
+                        evaluated,
+                        &mut attrs,
+                        &mut properties_as_uniforms,
+                    );
                 }
             }
         }
@@ -417,7 +441,7 @@ fn update_tile_drawable(
         .into_iter()
         .map(|segment| Box::new(mln_gfx::drawable::DrawSegment::new(DrawMode::Triangles(), segment.copy())))
         .collect();
-        drawable.set_index_data(Some(Rc::new(RefCell::new(IndexVectorBase::new(buffer.triangles.clone())))), segments);
+        drawable.set_index_data(Some(released_indexes(&buffer.triangles)), segments);
     }
 }
 
@@ -597,11 +621,7 @@ impl RenderSymbolLayer {
             collision_builder.set_shader(Some(shader));
             collision_builder.set_raw_vertices(Vec::new(), buffer.vertices.len(), AttributeDataType::Short2);
             collision_builder.set_vertex_attributes(Some(get_collision_vertex_attributes(context, buffer)));
-            collision_builder.set_segments_shared(
-                mode,
-                Some(Rc::new(RefCell::new(IndexVectorBase::new(buffer.indices.clone())))),
-                &buffer.segments,
-            );
+            collision_builder.set_segments_shared(mode, Some(released_indexes(&buffer.indices)), &buffer.segments);
             collision_builder.flush(context);
         };
 
@@ -1001,7 +1021,15 @@ impl RenderLayer for RenderSymbolLayer {
                     // and should not be updated.
                     return false;
                 }
-                update_tile_drawable(drawable, bucket, &layer_id, evaluated, refresh, &mut refreshed_attributes);
+                update_tile_drawable(
+                    drawable,
+                    tile.get_bucket_geometry(),
+                    bucket,
+                    &layer_id,
+                    evaluated,
+                    refresh,
+                    &mut refreshed_attributes,
+                );
                 true
             };
             if self.update_tile(passes, &tile_id, update_existing) {
@@ -1150,6 +1178,8 @@ impl RenderLayer for RenderSymbolLayer {
 
             let vertex_attribs = context.create_vertex_attribute_array();
             update_tile_attributes(
+                tile.get_bucket_geometry(),
+                bucket,
                 buffer,
                 is_text,
                 &bucket_paint_properties,
@@ -1238,7 +1268,7 @@ impl RenderLayer for RenderSymbolLayer {
 
                 builder.set_raw_vertices(Vec::new(), buffer.attribute_data.len(), AttributeDataType::Short4);
 
-                let triangle_indices = Some(Rc::new(RefCell::new(IndexVectorBase::new(buffer.triangles.clone()))));
+                let triangle_indices = Some(released_indexes(&buffer.triangles));
                 match group.segment {
                     Some(i) => builder.set_segments_shared(
                         DrawMode::Triangles(),

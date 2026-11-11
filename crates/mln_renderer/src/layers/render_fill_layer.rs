@@ -8,9 +8,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use mln_gfx::index_vector::IndexVectorBase;
 use mln_gfx::shader_group::{ShaderGroupPtr, StringIDSetsPair};
 use mln_gfx::shaders::shader_defines::*;
+use mln_gfx::vertex_vector::VertexVectorBasePtr;
 use mln_gfx::{
     AttributeDataType, ColorMode, Context, CullFaceMode, DepthMaskType, DrawMode, DrawableBuilder, ShaderRegistry,
     UniqueDrawableBuilder, VertexAttributeArrayPtr,
@@ -29,8 +29,9 @@ use mln_util::sync::RwLockExt;
 use super::fill_layer_tweaker::FillLayerTweaker;
 use super::{
     TileDrawables, drawable_binders_slot, drawable_has_layer_tweaker, drawable_render_tile_slot,
-    refresh_if_bucket_updated, shared_vertices,
+    refresh_if_bucket_updated,
 };
+use crate::bucket_geometry::{bucket_indexes, bucket_vertices, paint_vertices};
 use crate::buckets::fill_bucket::{FillBinders, FillBucket, FillLayoutVertex};
 use crate::buckets::line_bucket::LineLayoutVertex;
 use crate::change_request::{ChangeRequest, UniqueChangeRequestVec};
@@ -85,17 +86,17 @@ impl FillVariant {
 fn read_fill_attributes(
     attrs: &mut mln_gfx::vertex_attribute::VertexAttributeArray,
     binders: &FillBinders,
+    shared: &VertexVectorBasePtr,
     evaluated: &FillPaintProperties::PossiblyEvaluated,
     pau: &mut StringIDSetsPair,
 ) {
     let buffer = &binders.interleaved_vertex_buffer;
-    let shared = shared_vertices(&buffer.shared_vertex_vector);
     let mut id = ID_FILL_COLOR_VERTEX_ATTRIBUTE;
     read_data_driven_paint_property(
         attrs,
         &binders.fill_color,
         buffer,
-        &shared,
+        shared,
         &["a_color"],
         evaluated.get::<FillColor>().is_constant(),
         pau,
@@ -105,7 +106,7 @@ fn read_fill_attributes(
         attrs,
         &binders.fill_opacity,
         buffer,
-        &shared,
+        shared,
         &["a_opacity"],
         evaluated.get::<FillOpacity>().is_constant(),
         pau,
@@ -115,7 +116,7 @@ fn read_fill_attributes(
         attrs,
         &binders.fill_outline_color,
         buffer,
-        &shared,
+        shared,
         &["a_outline_color"],
         evaluated.get::<FillOutlineColor>().is_constant(),
         pau,
@@ -125,7 +126,7 @@ fn read_fill_attributes(
         attrs,
         &binders.fill_pattern,
         buffer,
-        &shared,
+        shared,
         &["a_pattern_to", "a_pattern_from"],
         evaluated.get::<FillPattern>().is_constant(),
         pau,
@@ -366,6 +367,10 @@ impl RenderLayer for RenderFillLayer {
             self.set_render_tile_bucket_id(&tile_id, bucket.base.bucket_id);
 
             let evaluated = get_evaluated::<FillLayerProperties>(&render_data.layer_properties);
+            let geometry = tile.get_bucket_geometry();
+            let paint = || {
+                paint_vertices(geometry, bucket, &binders.interleaved_vertex_buffer, binders.depends_on_feature_state())
+            };
 
             // (getAtlasTweaker: in the pattern branch.) TODO(port):
             // captureRenderedFeatures.
@@ -378,7 +383,7 @@ impl RenderLayer for RenderFillLayer {
                 if current && FillVariant::from_type(drawable.get_type()) != Some(FillVariant::FillOutlineTriangulated)
                 {
                     refresh_if_bucket_updated(drawable, |attrs| {
-                        read_fill_attributes(attrs, binders, evaluated, &mut Default::default())
+                        read_fill_attributes(attrs, binders, &paint(), evaluated, &mut Default::default())
                     });
                 }
                 current
@@ -392,7 +397,13 @@ impl RenderLayer for RenderFillLayer {
 
             // `Fill*Program` all use `style::FillPaintProperties`
             let vertex_attrs: VertexAttributeArrayPtr = context.create_vertex_attribute_array();
-            read_fill_attributes(&mut vertex_attrs.borrow_mut(), binders, evaluated, &mut properties_as_uniforms);
+            read_fill_attributes(
+                &mut vertex_attrs.borrow_mut(),
+                binders,
+                &paint(),
+                evaluated,
+                &mut properties_as_uniforms,
+            );
 
             // Outline always occurs in translucent pass, defaults to fill
             // color. Outline does not default to fill in the pattern case
@@ -408,7 +419,7 @@ impl RenderLayer for RenderFillLayer {
                 vertex_attrs.borrow_mut().set(ID_FILL_POS_VERTEX_ATTRIBUTE, -1, AttributeDataType::Invalid, 0)
             {
                 attr.set_shared_raw_data(
-                    Some(shared_vertices(&bucket.vertices)),
+                    Some(bucket_vertices(geometry, bucket, &bucket.vertices)),
                     0, // offsetof(FillLayoutVertex, a1)
                     /*vertexOffset=*/ 0,
                     std::mem::size_of::<FillLayoutVertex>() as u32,
@@ -419,7 +430,7 @@ impl RenderLayer for RenderFillLayer {
             let line_vertex_count = bucket.line_vertices.len();
             let get_triangulated_attributes = || {
                 let attrs = context.create_vertex_attribute_array();
-                let shared = shared_vertices(&bucket.line_vertices);
+                let shared = bucket_vertices(geometry, bucket, &bucket.line_vertices);
                 if let Some(attr) =
                     attrs.borrow_mut().set(ID_LINE_POS_NORMAL_VERTEX_ATTRIBUTE, -1, AttributeDataType::Invalid, 0)
                 {
@@ -534,7 +545,7 @@ impl RenderLayer for RenderFillLayer {
                         builder.set_raw_vertices(Vec::new(), fill_vertex_count, AttributeDataType::Short2);
                         builder.set_segments_shared(
                             DrawMode::Triangles(),
-                            Some(Rc::new(RefCell::new(IndexVectorBase::new(bucket.triangles.clone())))),
+                            Some(bucket_indexes(geometry, bucket, &bucket.triangles)),
                             &bucket.triangle_segments,
                         );
                         finish(builder.as_mut(), FillVariant::Fill, base_stats);
@@ -556,7 +567,7 @@ impl RenderLayer for RenderFillLayer {
                                 builder.set_vertex_attributes(Some(get_triangulated_attributes()));
                                 builder.set_segments_shared(
                                     DrawMode::Triangles(),
-                                    Some(Rc::new(RefCell::new(IndexVectorBase::new(bucket.line_indexes.clone())))),
+                                    Some(bucket_indexes(geometry, bucket, &bucket.line_indexes)),
                                     &bucket.line_segments,
                                 );
                                 finish(builder.as_mut(), FillVariant::FillOutlineTriangulated, base_stats);
@@ -566,7 +577,7 @@ impl RenderLayer for RenderFillLayer {
                             builder.set_raw_vertices(Vec::new(), fill_vertex_count, AttributeDataType::Short2);
                             builder.set_segments_shared(
                                 DrawMode::Lines(LINE_WIDTH),
-                                Some(Rc::new(RefCell::new(IndexVectorBase::new(bucket.basic_lines.clone())))),
+                                Some(bucket_indexes(geometry, bucket, &bucket.basic_lines)),
                                 &bucket.basic_line_segments,
                             );
                             finish(builder.as_mut(), FillVariant::FillOutline, base_stats);
@@ -654,7 +665,7 @@ impl RenderLayer for RenderFillLayer {
                     builder.set_raw_vertices(Vec::new(), fill_vertex_count, AttributeDataType::Short2);
                     builder.set_segments_shared(
                         DrawMode::Triangles(),
-                        Some(Rc::new(RefCell::new(IndexVectorBase::new(bucket.triangles.clone())))),
+                        Some(bucket_indexes(geometry, bucket, &bucket.triangles)),
                         &bucket.triangle_segments,
                     );
 
@@ -670,7 +681,7 @@ impl RenderLayer for RenderFillLayer {
                     builder.set_raw_vertices(Vec::new(), fill_vertex_count, AttributeDataType::Short2);
                     builder.set_segments_shared(
                         DrawMode::Lines(LINE_WIDTH),
-                        Some(Rc::new(RefCell::new(IndexVectorBase::new(bucket.basic_lines.clone())))),
+                        Some(bucket_indexes(geometry, bucket, &bucket.basic_lines)),
                         &bucket.basic_line_segments,
                     );
 

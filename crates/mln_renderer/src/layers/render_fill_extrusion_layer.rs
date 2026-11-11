@@ -9,7 +9,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use mln_gfx::drawable_tweaker::DrawableTweakerPtr;
-use mln_gfx::index_vector::IndexVectorBase;
 use mln_gfx::shader_group::{ShaderGroupPtr, StringIDSetsPair};
 use mln_gfx::shaders::shader_defines::*;
 use mln_gfx::{
@@ -28,9 +27,8 @@ use mln_util::immutable::Immutable;
 use mln_util::sync::RwLockExt;
 
 use super::fill_extrusion_layer_tweaker::FillExtrusionLayerTweaker;
-use super::{
-    TileDrawables, drawable_binders_slot, drawable_has_layer_tweaker, drawable_render_tile_slot, shared_vertices,
-};
+use super::{TileDrawables, drawable_binders_slot, drawable_has_layer_tweaker, drawable_render_tile_slot};
+use crate::bucket_geometry::{bucket_indexes, bucket_vertices, paint_vertices};
 use crate::buckets::fill_extrusion_bucket::{FillExtrusionBucket, FillExtrusionLayoutVertex};
 use crate::change_request::{ChangeRequest, UniqueChangeRequestVec};
 use crate::gfx::drawable_atlases_tweaker::DrawableAtlasesTweaker;
@@ -268,6 +266,7 @@ impl RenderLayer for RenderFillExtrusionLayer {
             };
             let binders_guard = binders_lock.read_unpoisoned();
             let binders = &*binders_guard;
+            let geometry = tile.get_bucket_geometry();
 
             // TODO(port): captureRenderedFeatures.
 
@@ -287,7 +286,7 @@ impl RenderLayer for RenderFillExtrusionLayer {
             let vertex_attrs = context.create_vertex_attribute_array();
             {
                 let buffer = &binders.interleaved_vertex_buffer;
-                let shared = shared_vertices(&buffer.shared_vertex_vector);
+                let shared = paint_vertices(geometry, bucket, buffer, binders.depends_on_feature_state());
                 let mut attrs = vertex_attrs.borrow_mut();
                 let mut id = ID_FILL_EXTRUSION_BASE_VERTEX_ATTRIBUTE;
                 let b = binders;
@@ -394,7 +393,7 @@ impl RenderLayer for RenderFillExtrusionLayer {
             }
             let _ = &tweaker;
 
-            let vertices = shared_vertices(&bucket.vertices);
+            let vertices = bucket_vertices(geometry, bucket, &bucket.vertices);
             {
                 let stride = std::mem::size_of::<FillExtrusionLayoutVertex>() as u32;
                 let mut attrs = vertex_attrs.borrow_mut();
@@ -427,7 +426,7 @@ impl RenderLayer for RenderFillExtrusionLayer {
             color.set_raw_vertices(Vec::new(), vertex_count, AttributeDataType::Short2);
             color.set_vertex_attributes(Some(vertex_attrs));
 
-            let triangles = Rc::new(RefCell::new(IndexVectorBase::new(bucket.triangles.clone())));
+            let triangles = bucket_indexes(geometry, bucket, &bucket.triangles);
             let stats = &mut self.base.stats;
             let mut finish = |builder: &mut dyn DrawableBuilder| {
                 if bucket.triangles.is_empty() {

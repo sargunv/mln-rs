@@ -159,6 +159,12 @@ impl RenderTile {
         self.render_data.as_ref().and_then(|data| data.get_feature_index())
     }
 
+    /// Port-only: the render thread's copies of the tile's bucket geometry
+    /// (bucket_geometry.rs).
+    pub fn get_bucket_geometry(&self) -> Option<&crate::bucket_geometry::BucketGeometry> {
+        self.render_data.as_deref().and_then(|data| data.get_bucket_geometry())
+    }
+
     pub fn get_layer_render_data(&self, impl_: &dyn layer::Impl) -> Option<&LayerRenderData> {
         self.render_data().get_layer_render_data(impl_)
     }

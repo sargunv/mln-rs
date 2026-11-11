@@ -5,7 +5,8 @@
 // built on the worker thread and then shared with the render thread
 // (`std::shared_ptr<Bucket>` in `LayerRenderData`): `BucketPtr = Arc<dyn
 // Bucket>`, `Bucket: Send + Sync`. The render thread only reads them, except
-// `upload` (an atomic flag, as in C++).
+// `upload` (an atomic flag, as in C++) and the geometry it moves out to draw
+// (bucket_geometry.rs).
 //
 // TODO(port): `registerAtCrossTileIndex`, `place`,
 // `updateVertices` (symbol buckets, M5), `getRenderThreadID`, `check`.

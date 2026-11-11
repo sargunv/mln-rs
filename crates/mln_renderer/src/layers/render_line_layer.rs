@@ -7,12 +7,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use mln_gfx::index_vector::IndexVectorBase;
 use mln_gfx::shader_group::{ShaderGroupPtr, StringIDSetsPair};
 use mln_gfx::shaders::shader_defines::*;
 use mln_gfx::shaders::shader_program_base::ShaderProgramBasePtr;
 use mln_gfx::texture2d::{SamplerState, Texture2DPtr};
 use mln_gfx::types::{TextureFilterType, TextureWrapType};
+use mln_gfx::vertex_vector::VertexVectorBasePtr;
 use mln_gfx::{
     AttributeDataType, ColorMode, Context, CullFaceMode, DepthMaskType, DrawMode, DrawableBuilder, ShaderRegistry,
     UniqueDrawableBuilder, VertexAttributeArrayPtr,
@@ -35,8 +35,9 @@ use mln_util::sync::RwLockExt;
 use super::line_layer_tweaker::{LineDrawableData, LineLayerTweaker, LineType};
 use super::{
     TileDrawables, drawable_binders_slot, drawable_has_layer_tweaker, drawable_render_tile_slot,
-    refresh_if_bucket_updated, shared_vertices,
+    refresh_if_bucket_updated,
 };
+use crate::bucket_geometry::{BucketGeometry, bucket_indexes, bucket_vertices, paint_vertices};
 use crate::buckets::line_bucket::{LineBinders, LineBucket, LineLayoutVertex};
 use crate::change_request::{ChangeRequest, UniqueChangeRequestVec};
 use crate::layer_tweaker::{LayerTweakerPtr, layer_tweaker_slot};
@@ -87,17 +88,17 @@ pub fn apply_color_ramp(
 fn read_line_attributes(
     attrs: &mut mln_gfx::vertex_attribute::VertexAttributeArray,
     b: &LineBinders,
+    shared: &VertexVectorBasePtr,
     evaluated: &LinePaintProperties::PossiblyEvaluated,
     pau: &mut StringIDSetsPair,
 ) {
     let buffer = &b.interleaved_vertex_buffer;
-    let shared = shared_vertices(&buffer.shared_vertex_vector);
     let mut id = ID_LINE_COLOR_VERTEX_ATTRIBUTE;
     read_data_driven_paint_property(
         attrs,
         &b.line_color,
         buffer,
-        &shared,
+        shared,
         &["a_color"],
         evaluated.get::<LineColor>().is_constant(),
         pau,
@@ -107,7 +108,7 @@ fn read_line_attributes(
         attrs,
         &b.line_blur,
         buffer,
-        &shared,
+        shared,
         &["a_blur"],
         evaluated.get::<LineBlur>().is_constant(),
         pau,
@@ -117,7 +118,7 @@ fn read_line_attributes(
         attrs,
         &b.line_opacity,
         buffer,
-        &shared,
+        shared,
         &["a_opacity"],
         evaluated.get::<LineOpacity>().is_constant(),
         pau,
@@ -127,7 +128,7 @@ fn read_line_attributes(
         attrs,
         &b.line_gap_width,
         buffer,
-        &shared,
+        shared,
         &["a_gapwidth"],
         evaluated.get::<LineGapWidth>().is_constant(),
         pau,
@@ -137,7 +138,7 @@ fn read_line_attributes(
         attrs,
         &b.line_offset,
         buffer,
-        &shared,
+        shared,
         &["a_offset"],
         evaluated.get::<LineOffset>().is_constant(),
         pau,
@@ -147,7 +148,7 @@ fn read_line_attributes(
         attrs,
         &b.line_width,
         buffer,
-        &shared,
+        shared,
         &["a_width"],
         evaluated.get::<LineWidth>().is_constant(),
         pau,
@@ -157,7 +158,7 @@ fn read_line_attributes(
         attrs,
         &b.line_floor_width,
         buffer,
-        &shared,
+        shared,
         &["a_floorwidth"],
         evaluated.get::<LineFloorWidth>().is_constant(),
         pau,
@@ -167,7 +168,7 @@ fn read_line_attributes(
         attrs,
         &b.line_pattern,
         buffer,
-        &shared,
+        shared,
         &["a_pattern_to", "a_pattern_from"],
         evaluated.get::<LinePattern>().is_constant(),
         pau,
@@ -534,12 +535,13 @@ impl RenderLayer for RenderLineLayer {
         };
 
         let add_attributes = |builder: &mut dyn DrawableBuilder,
+                              geometry: Option<&BucketGeometry>,
                               bucket: &LineBucket,
                               vertex_attrs: VertexAttributeArrayPtr| {
             let vertex_count = bucket.vertices.len();
             builder.set_raw_vertices(Vec::new(), vertex_count, AttributeDataType::Short4);
 
-            let shared = shared_vertices(&bucket.vertices);
+            let shared = bucket_vertices(geometry, bucket, &bucket.vertices);
             if let Some(attr) =
                 vertex_attrs.borrow_mut().set(ID_LINE_POS_NORMAL_VERTEX_ATTRIBUTE, -1, AttributeDataType::Invalid, 0)
             {
@@ -567,13 +569,14 @@ impl RenderLayer for RenderLineLayer {
             builder.set_vertex_attributes(Some(vertex_attrs));
         };
 
-        let set_segments = |builder: &mut dyn DrawableBuilder, bucket: &LineBucket| {
-            builder.set_segments_shared(
-                DrawMode::Triangles(),
-                Some(Rc::new(RefCell::new(IndexVectorBase::new(bucket.triangles.clone())))),
-                &bucket.segments,
-            );
-        };
+        let set_segments =
+            |builder: &mut dyn DrawableBuilder, geometry: Option<&BucketGeometry>, bucket: &LineBucket| {
+                builder.set_segments_shared(
+                    DrawMode::Triangles(),
+                    Some(bucket_indexes(geometry, bucket, &bucket.triangles)),
+                    &bucket.segments,
+                );
+            };
 
         let layer_tweaker = self.base.layer_tweaker.clone();
         let layer_id = self.get_id().to_owned();
@@ -600,6 +603,15 @@ impl RenderLayer for RenderLineLayer {
             };
             let binders_guard = binders_lock.read_unpoisoned();
             let paint_property_binders = &*binders_guard;
+            let geometry = tile.get_bucket_geometry();
+            let paint = || {
+                paint_vertices(
+                    geometry,
+                    bucket,
+                    &paint_property_binders.interleaved_vertex_buffer,
+                    paint_property_binders.depends_on_feature_state(),
+                )
+            };
             let evaluated = get_evaluated::<LineLayerProperties>(&render_data.layer_properties);
 
             // TODO(port): captureRenderedFeatures.
@@ -617,7 +629,13 @@ impl RenderLayer for RenderLineLayer {
                 let current = drawable_has_layer_tweaker(drawable, &layer_tweaker);
                 if current {
                     refresh_if_bucket_updated(drawable, |attrs| {
-                        read_line_attributes(attrs, paint_property_binders, evaluated, &mut Default::default())
+                        read_line_attributes(
+                            attrs,
+                            paint_property_binders,
+                            &paint(),
+                            evaluated,
+                            &mut Default::default(),
+                        )
                     });
                 }
                 current
@@ -651,6 +669,7 @@ impl RenderLayer for RenderLineLayer {
             read_line_attributes(
                 &mut vertex_attrs.borrow_mut(),
                 paint_property_binders,
+                &paint(),
                 evaluated,
                 &mut properties_as_uniforms,
             );
@@ -693,13 +712,13 @@ impl RenderLayer for RenderLineLayer {
                 let mut builder = create_line_builder("lineGradientSDF", shader);
 
                 // vertices and attributes
-                add_attributes(builder.as_mut(), bucket, vertex_attrs);
+                add_attributes(builder.as_mut(), geometry, bucket, vertex_attrs);
 
                 ensure_color_ramp_texture(&mut self.color_ramp_texture_2d, &self.color_ramp);
                 if let Some(texture) = &self.color_ramp_texture_2d {
                     builder.set_texture(Some(texture.clone()), ID_LINE_IMAGE_TEXTURE);
 
-                    set_segments(builder.as_mut(), bucket);
+                    set_segments(builder.as_mut(), geometry, bucket);
 
                     builder.flush(context);
                     for drawable in builder.clear_drawables() {
@@ -722,8 +741,8 @@ impl RenderLayer for RenderLineLayer {
                 let mut builder = create_line_builder("lineSDF", shader);
 
                 // vertices, attributes and segments
-                add_attributes(builder.as_mut(), bucket, vertex_attrs);
-                set_segments(builder.as_mut(), bucket);
+                add_attributes(builder.as_mut(), geometry, bucket, vertex_attrs);
+                set_segments(builder.as_mut(), geometry, bucket);
 
                 builder.flush(context);
                 for drawable in builder.clear_drawables() {
@@ -745,7 +764,7 @@ impl RenderLayer for RenderLineLayer {
                 let mut builder = create_line_builder("linePattern", shader);
 
                 // vertices and attributes
-                add_attributes(builder.as_mut(), bucket, vertex_attrs);
+                add_attributes(builder.as_mut(), geometry, bucket, vertex_attrs);
 
                 // texture
                 if let Some(atlases) = tile.get_atlas_textures().filter(|a| a.icon.borrow().is_some()) {
@@ -763,7 +782,7 @@ impl RenderLayer for RenderLineLayer {
 
                     builder.add_tweaker(icon_tweaker);
 
-                    set_segments(builder.as_mut(), bucket);
+                    set_segments(builder.as_mut(), geometry, bucket);
 
                     builder.flush(context);
                     for drawable in builder.clear_drawables() {
@@ -786,13 +805,13 @@ impl RenderLayer for RenderLineLayer {
                 let mut builder = create_line_builder("lineGradient", shader);
 
                 // vertices and attributes
-                add_attributes(builder.as_mut(), bucket, vertex_attrs);
+                add_attributes(builder.as_mut(), geometry, bucket, vertex_attrs);
 
                 ensure_color_ramp_texture(&mut self.color_ramp_texture_2d, &self.color_ramp);
                 if let Some(texture) = &self.color_ramp_texture_2d {
                     builder.set_texture(Some(texture.clone()), ID_LINE_IMAGE_TEXTURE);
 
-                    set_segments(builder.as_mut(), bucket);
+                    set_segments(builder.as_mut(), geometry, bucket);
 
                     builder.flush(context);
                     for drawable in builder.clear_drawables() {
@@ -815,8 +834,8 @@ impl RenderLayer for RenderLineLayer {
                 let mut builder = create_line_builder("line", shader);
 
                 // vertices, attributes and segments
-                add_attributes(builder.as_mut(), bucket, vertex_attrs);
-                set_segments(builder.as_mut(), bucket);
+                add_attributes(builder.as_mut(), geometry, bucket, vertex_attrs);
+                set_segments(builder.as_mut(), geometry, bucket);
 
                 builder.flush(context);
                 for drawable in builder.clear_drawables() {

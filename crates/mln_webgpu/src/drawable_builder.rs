@@ -71,9 +71,9 @@ impl drawable_builder::DrawableBuilder for DrawableBuilder {
             let raw = std::mem::take(&mut impl_.raw_vertices);
             drawable.set_vertices(raw, impl_.raw_vertices_count, impl_.raw_vertices_type);
         } else if !impl_.vertices.empty() {
-            let verts = impl_.vertices.vector();
+            let verts = impl_.vertices.data();
             if !verts.is_empty() {
-                let raw: Vec<u8> = bytemuck::cast_slice(verts.as_slice()).to_vec();
+                let raw: Vec<u8> = bytemuck::cast_slice(&verts).to_vec();
                 drawable.set_vertices(raw, verts.len(), AttributeDataType::Short2);
             }
         }

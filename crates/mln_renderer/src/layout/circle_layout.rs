@@ -247,10 +247,10 @@ impl CircleLayout {
                 // │ 1     2 │
                 // └─────────┘
                 //
-                bucket.vertices.push(CircleBucket::vertex(*point, -1.0, -1.0)); // 1
-                bucket.vertices.push(CircleBucket::vertex(*point, 1.0, -1.0)); // 2
-                bucket.vertices.push(CircleBucket::vertex(*point, 1.0, 1.0)); // 3
-                bucket.vertices.push(CircleBucket::vertex(*point, -1.0, 1.0)); // 4
+                bucket.vertices.get_mut().push(CircleBucket::vertex(*point, -1.0, -1.0)); // 1
+                bucket.vertices.get_mut().push(CircleBucket::vertex(*point, 1.0, -1.0)); // 2
+                bucket.vertices.get_mut().push(CircleBucket::vertex(*point, 1.0, 1.0)); // 3
+                bucket.vertices.get_mut().push(CircleBucket::vertex(*point, -1.0, 1.0)); // 4
 
                 let segment = bucket.segments.last_mut().expect("segment");
                 debug_assert!(segment.vertex_length <= u16::MAX as usize);
@@ -259,7 +259,7 @@ impl CircleLayout {
                 // 1, 2, 3
                 // 1, 4, 3
                 // (`index + 1` etc. are `int`s narrowed to uint16_t)
-                bucket.triangles.extend_from_slice(&[
+                bucket.triangles.get_mut().extend_from_slice(&[
                     index,
                     (index as i32 + 1) as u16,
                     (index as i32 + 2) as u16,

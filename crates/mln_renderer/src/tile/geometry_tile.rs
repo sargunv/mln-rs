@@ -52,6 +52,7 @@ use mln_vec_map::VecSet;
 use serde::{Deserialize, Serialize};
 
 use crate::bucket::BucketPtr;
+use crate::bucket_geometry::BucketGeometry;
 use crate::geometry::feature_index::FeatureIndex;
 use crate::gfx::dynamic_texture_atlas::{GlyphAtlas, ImageAtlas, ImageVersionMap, TextureAtlas};
 use crate::image_manager::{ImageManager, ImageRequestPair, ImageRequestor, ImageRequestorBase, requestor_key};
@@ -134,6 +135,7 @@ impl LayoutResult {
 struct GeometryTileRenderData {
     atlas_textures: Option<Rc<TileAtlasTextures>>,
     layout_result: Option<Rc<LayoutResult>>,
+    bucket_geometry: Rc<BucketGeometry>,
     // TODO(port): std::vector<ImagePatch> imagePatches (sprite updates).
 }
 
@@ -157,6 +159,10 @@ impl TileRenderData for GeometryTileRenderData {
 
     fn get_feature_index(&self) -> Option<Arc<FeatureIndex>> {
         self.layout_result.as_ref().map(|result| result.feature_index.clone())
+    }
+
+    fn get_bucket_geometry(&self) -> Option<&BucketGeometry> {
+        Some(&self.bucket_geometry)
     }
 
     fn upload(&self, upload_pass: &dyn UploadPass) {
@@ -227,6 +233,8 @@ pub struct GeometryTileInner {
     correlation_id: Cell<u64>,
 
     layout_result: RefCell<Option<Rc<LayoutResult>>>,
+    /// The render thread's copies of the layout result's bucket geometry.
+    bucket_geometry: RefCell<Rc<BucketGeometry>>,
     atlas_textures: RefCell<Option<Rc<TileAtlasTextures>>>,
 
     mode: MapMode,
@@ -311,6 +319,7 @@ impl GeometryTileInner {
         // TODO(port): ErrorScope, bucket->check (symbol guards).
 
         *self.layout_result.borrow_mut() = Some(Rc::new(result));
+        *self.bucket_geometry.borrow_mut() = Rc::default();
         if self.atlas_textures.borrow().is_none() {
             *self.atlas_textures.borrow_mut() = Some(Rc::new(TileAtlasTextures::default()));
         }
@@ -484,6 +493,7 @@ impl GeometryTile {
                 mailbox: mailbox.clone(),
                 correlation_id: Cell::new(0),
                 layout_result: RefCell::new(None),
+                bucket_geometry: RefCell::default(),
                 atlas_textures: RefCell::new(None),
                 mode: parameters.mode,
                 show_collision_boxes: Cell::new(show_collision_boxes),
@@ -555,6 +565,7 @@ impl Tile for GeometryTile {
         Box::new(GeometryTileRenderData {
             atlas_textures: self.inner.atlas_textures.borrow().clone(),
             layout_result: self.inner.layout_result.borrow().clone(),
+            bucket_geometry: self.inner.bucket_geometry.borrow().clone(),
         })
     }
 

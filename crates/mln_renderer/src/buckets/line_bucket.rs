@@ -21,12 +21,12 @@ use mln_util::feature::numeric_value_f64;
 use mln_util::geometry::FeatureType;
 use mln_util::immutable::Immutable;
 use mln_util::logging::{Event, Log};
-use mln_util::serialization::payload::pod;
 use mln_util::sync::RwLockExt;
 use mln_vec_map::VecMap;
 use serde::{Deserialize, Serialize};
 
 use crate::bucket::{Bucket, BucketBase};
+use crate::bucket_geometry::GeometryVec;
 use crate::layout::pattern_layout::PatternLayerMap;
 use crate::paint_property_binder::{CrossFadedPaintPropertyBinder, PaintPropertyBinder};
 use crate::render_layer::RenderLayer;
@@ -58,11 +58,9 @@ pub struct LineLayoutVertex {
 pub struct LineBucket {
     pub base: BucketBase,
     pub layout: LineLayoutProperties::PossiblyEvaluated,
-    #[serde(with = "pod")]
-    pub vertices: Vec<LineLayoutVertex>,
+    pub vertices: GeometryVec<LineLayoutVertex>,
     /// `gfx::IndexVector<gfx::Triangles>`.
-    #[serde(with = "pod")]
-    pub triangles: Vec<u16>,
+    pub triangles: GeometryVec<u16>,
     pub segments: Vec<SegmentBase>,
     /// Behind `RwLock`s: `update` (feature state) changes them while the
     /// bucket is shared.
@@ -97,8 +95,8 @@ impl LineBucket {
         LineBucket {
             base: BucketBase::default(),
             layout,
-            vertices: Vec::new(),
-            triangles: Vec::new(),
+            vertices: GeometryVec::default(),
+            triangles: GeometryVec::default(),
             segments: Vec::new(),
             paint_property_binders,
             zoom,
@@ -223,12 +221,12 @@ impl LineBucket {
         options.overscaling = self.overscaling;
 
         let mut generator = PolylineGenerator::new(
-            &mut self.vertices,
+            self.vertices.get_mut(),
             LineBucket::layout_vertex,
             &mut self.segments,
             &SegmentBase::new,
             |segment: &mut SegmentBase| segment,
-            &mut self.triangles,
+            self.triangles.get_mut(),
         );
         generator.generate(coordinates, &options);
     }
