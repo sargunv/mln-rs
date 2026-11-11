@@ -2,6 +2,7 @@
 
 pub mod algorithm;
 pub mod bucket;
+pub mod bucket_geometry;
 pub mod bucket_parameters;
 pub mod buckets;
 pub mod change_request;

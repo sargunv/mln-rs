@@ -70,7 +70,6 @@ impl UploadPass {
         force_update: bool,
     ) -> Option<UniqueVertexBufferResource> {
         let vec = vec?;
-        let raw = vec.get_raw_data();
         let raw_size = vec.get_raw_count() * vec.get_raw_size();
         let existing = vec
             .get_buffer()
@@ -84,15 +83,18 @@ impl UploadPass {
                 Some(t) => vec.is_modified_after(t),
                 None => true,
             };
-            if force_update || modified {
-                resource.update(&raw[..raw_size]);
+            // A freed vector's data is already in the buffer.
+            if vec.has_raw_data() && (force_update || modified) {
+                resource.update(&vec.get_raw_data()[..raw_size]);
                 resource.set_last_updated(vec.get_last_modified());
             }
             return Some(resource);
         }
         let _ = usage;
         if raw_size > 0 {
-            let resource = self.create_vertex_buffer(&raw[..raw_size], false);
+            debug_assert!(vec.has_raw_data());
+            let resource = self.create_vertex_buffer(&vec.get_raw_data()[..raw_size], false);
+            // A released vector frees its CPU copy here.
             vec.set_buffer(Some(Box::new(VertexBuffer { resource: resource.clone() })));
             return Some(resource);
         }

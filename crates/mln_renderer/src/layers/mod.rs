@@ -32,7 +32,7 @@ pub use circle_layer_tweaker::CircleLayerTweaker;
 pub use fill_layer_tweaker::FillLayerTweaker;
 pub use line_layer_tweaker::LineLayerTweaker;
 use mln_gfx::Drawable;
-use mln_gfx::vertex_vector::{VertexVector, VertexVectorBasePtr};
+use mln_gfx::vertex_vector::VertexVectorBasePtr;
 use mln_style::CrossfadeParameters;
 use mln_style::layer_properties::{LayerProperties, get_crossfade, get_evaluated};
 use mln_style::layers::{BackgroundLayerProperties, BackgroundPaintProperties};
@@ -156,10 +156,11 @@ pub fn drawable_has_layer_tweaker(drawable: &dyn Drawable, layer_tweaker: &Optio
     }
 }
 
-/// A shared gfx vertex vector holding a copy of a bucket's vertices (C++
-/// shares the bucket's own `std::shared_ptr<VertexVector>`).
+/// A shared gfx vertex vector holding a copy of `vertices`, for data that
+/// stays in the bucket or the layer (see `bucket_geometry::released_vertices`;
+/// a bucket's geometry comes from `bucket_geometry::bucket_vertices`).
 pub fn shared_vertices<V: bytemuck::Pod>(vertices: &[V]) -> VertexVectorBasePtr {
-    Rc::new(VertexVector::from_vec(vertices.to_vec()))
+    crate::bucket_geometry::released_vertices(vertices)
 }
 
 /// `checkTweakDrawable` for a tweaker whose `RefCell` is already borrowed

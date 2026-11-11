@@ -19,12 +19,12 @@ use mln_tile_id::geometry_tile_data::{GeometryCollection, GeometryCoordinate, Ge
 use mln_util::constants::EXTENT;
 use mln_util::exception::ExceptionPtr;
 use mln_util::immutable::Immutable;
-use mln_util::serialization::payload::pod;
 use mln_util::sync::RwLockExt;
 use mln_vec_map::VecMap;
 use serde::{Deserialize, Serialize};
 
 use crate::bucket::{Bucket, BucketBase};
+use crate::bucket_geometry::GeometryVec;
 use crate::bucket_parameters::BucketParameters;
 use crate::layout::pattern_layout::PatternLayerMap;
 use crate::paint_property_binder::PaintPropertyBinder;
@@ -51,11 +51,9 @@ pub type HeatmapTextureLayoutVertex = HeatmapLayoutVertex;
 #[derive(Serialize, Deserialize)]
 pub struct HeatmapBucket {
     pub base: BucketBase,
-    #[serde(with = "pod")]
-    pub vertices: Vec<HeatmapLayoutVertex>,
+    pub vertices: GeometryVec<HeatmapLayoutVertex>,
     /// `gfx::IndexVector<gfx::Triangles>`.
-    #[serde(with = "pod")]
-    pub triangles: Vec<u16>,
+    pub triangles: GeometryVec<u16>,
     pub segments: Vec<SegmentBase>,
     /// Behind `RwLock`s like the other buckets' binders (the bucket is
     /// shared; C++ heatmap buckets have no feature-state update).
@@ -80,8 +78,8 @@ impl HeatmapBucket {
         }
         HeatmapBucket {
             base: BucketBase::default(),
-            vertices: Vec::new(),
-            triangles: Vec::new(),
+            vertices: GeometryVec::default(),
+            triangles: GeometryVec::default(),
             segments: Vec::new(),
             paint_property_binders,
             mode: parameters.mode,
@@ -154,10 +152,10 @@ impl Bucket for HeatmapBucket {
                 // │ 1     2 │
                 // └─────────┘
                 //
-                self.vertices.push(HeatmapBucket::vertex(point, -1.0, -1.0)); // 1
-                self.vertices.push(HeatmapBucket::vertex(point, 1.0, -1.0)); // 2
-                self.vertices.push(HeatmapBucket::vertex(point, 1.0, 1.0)); // 3
-                self.vertices.push(HeatmapBucket::vertex(point, -1.0, 1.0)); // 4
+                self.vertices.get_mut().push(HeatmapBucket::vertex(point, -1.0, -1.0)); // 1
+                self.vertices.get_mut().push(HeatmapBucket::vertex(point, 1.0, -1.0)); // 2
+                self.vertices.get_mut().push(HeatmapBucket::vertex(point, 1.0, 1.0)); // 3
+                self.vertices.get_mut().push(HeatmapBucket::vertex(point, -1.0, 1.0)); // 4
 
                 let segment = self.segments.last_mut().expect("segment");
                 debug_assert!(segment.vertex_length <= usize::from(u16::MAX));
@@ -165,8 +163,8 @@ impl Bucket for HeatmapBucket {
 
                 // 1, 2, 3
                 // 1, 4, 3
-                self.triangles.extend_from_slice(&[index, index + 1, index + 2]);
-                self.triangles.extend_from_slice(&[index, index + 3, index + 2]);
+                self.triangles.get_mut().extend_from_slice(&[index, index + 1, index + 2]);
+                self.triangles.get_mut().extend_from_slice(&[index, index + 3, index + 2]);
 
                 segment.vertex_length += VERTEX_LENGTH;
                 segment.index_length += 6;

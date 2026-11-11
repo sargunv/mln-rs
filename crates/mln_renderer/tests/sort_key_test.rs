@@ -188,7 +188,11 @@ fn fill_order() {
         let properties = layer(json!({ "id": "fill", "type": "fill", "source": "source" }), "fill-sort-key", type_);
         let bucket = create_bucket(properties, Shape::Polygon);
         let bucket = bucket.downcast_ref::<FillBucket>().unwrap();
-        assert_eq!(expected_order(type_), feature_order(bucket.vertices.iter().map(|v| v.a1[0]), 1), "{type_:?}");
+        assert_eq!(
+            expected_order(type_),
+            feature_order(bucket.vertices.data().iter().map(|v| v.a1[0]), 1),
+            "{type_:?}"
+        );
     }
 }
 
@@ -198,7 +202,11 @@ fn line_order() {
         let properties = layer(json!({ "id": "line", "type": "line", "source": "source" }), "line-sort-key", type_);
         let bucket = create_bucket(properties, Shape::LineString);
         let bucket = bucket.downcast_ref::<LineBucket>().unwrap();
-        assert_eq!(expected_order(type_), feature_order(bucket.vertices.iter().map(|v| v.a1[0]), 2), "{type_:?}");
+        assert_eq!(
+            expected_order(type_),
+            feature_order(bucket.vertices.data().iter().map(|v| v.a1[0]), 2),
+            "{type_:?}"
+        );
     }
 }
 
@@ -209,7 +217,11 @@ fn circle_order() {
             layer(json!({ "id": "circle", "type": "circle", "source": "source" }), "circle-sort-key", type_);
         let bucket = create_bucket(properties, Shape::Point);
         let bucket = bucket.downcast_ref::<CircleBucket>().unwrap();
-        assert_eq!(expected_order(type_), feature_order(bucket.vertices.iter().map(|v| v.a1[0]), 2), "{type_:?}");
+        assert_eq!(
+            expected_order(type_),
+            feature_order(bucket.vertices.data().iter().map(|v| v.a1[0]), 2),
+            "{type_:?}"
+        );
         let expected_sort_key = match type_ {
             SortKeyType::Constant | SortKeyType::Camera => 5.0,
             _ => 0.0,

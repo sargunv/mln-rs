@@ -496,7 +496,8 @@ pub trait DrawableBuilder {
                 let shared = self.base().impl_.shared_indexes.as_ref().unwrap().borrow();
                 debug_assert!(vertex_count == 0 || seg.vertex_offset + seg.vertex_length <= vertex_count);
                 debug_assert!(seg.index_offset + seg.index_length <= shared.elements());
-                if vertex_count != 0 {
+                // The CPU copy of a released index vector is freed once it is uploaded.
+                if vertex_count != 0 && seg.index_offset + seg.index_length <= shared.vector().len() {
                     for j in 0..seg.index_length {
                         debug_assert!((shared.vector()[seg.index_offset + j] as usize) < vertex_count);
                     }

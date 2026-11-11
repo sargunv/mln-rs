@@ -45,6 +45,7 @@ use mln_util::sync::MutexExt;
 use mln_vec_map::VecMap;
 use serde::{Deserialize, Serialize};
 
+use crate::bucket_geometry::GeometryVec;
 use crate::layout::pattern_layout::PatternDependency;
 use crate::paint_property_statistics::{PaintPropertyStatistics, StatisticValue};
 
@@ -67,23 +68,24 @@ pub struct InterleavedVertexBuffer {
     pub stride: usize,
     pub vertex_count: usize,
     /// `gfx::VertexVectorPtr<uint8_t> sharedVertexVector`.
-    #[serde(with = "payload::bytes")]
-    pub shared_vertex_vector: Vec<u8>,
+    pub shared_vertex_vector: GeometryVec<u8>,
 }
 
 impl InterleavedVertexBuffer {
     /// `set<T>(index, offset, value)`.
     pub fn set(&mut self, index: usize, offset: usize, value: &[u8]) {
         let start = self.stride * index + offset;
-        debug_assert!(start + value.len() <= self.shared_vertex_vector.len());
-        self.shared_vertex_vector[start..start + value.len()].copy_from_slice(value);
+        let data = self.shared_vertex_vector.get_mut();
+        debug_assert!(start + value.len() <= data.len());
+        data[start..start + value.len()].copy_from_slice(value);
     }
 
     /// `get<T>(index, offset)`, `len` = `sizeof(T)`.
-    pub fn get(&self, index: usize, offset: usize, len: usize) -> &[u8] {
+    pub fn get(&self, index: usize, offset: usize, len: usize) -> Vec<u8> {
         let start = self.stride * index + offset;
-        debug_assert!(start + len <= self.shared_vertex_vector.len());
-        &self.shared_vertex_vector[start..start + len]
+        let data = self.shared_vertex_vector.data();
+        debug_assert!(start + len <= data.len());
+        data[start..start + len].to_vec()
     }
 
     /// `extendVertexFormat<T>()`, with `sizeof(T)` and `alignof(T)`.
@@ -146,6 +148,16 @@ impl BinderValue for Color {
     fn attribute_value(&self) -> [f32; 2] {
         [pack_uint8_pair(255.0 * self.r, 255.0 * self.g) as f32, pack_uint8_pair(255.0 * self.b, 255.0 * self.a) as f32]
     }
+}
+
+/// True if `expression` reads `feature-state` anywhere.
+fn uses_feature_state(expression: &dyn mln_style::expression::Expression) -> bool {
+    if expression.get_operator() == "feature-state" {
+        return true;
+    }
+    let mut found = false;
+    expression.each_child(&mut |child| found = found || uses_feature_state(child));
+    found
 }
 
 fn floats_to_bytes(values: &[f32]) -> Vec<u8> {
@@ -423,13 +435,13 @@ impl<T: BinderValue> PaintPropertyBinder<T> {
         match &self.kind {
             PaintPropertyBinderKind::Constant { .. } => vec![0.0; 2 * n],
             PaintPropertyBinderKind::SourceFunction { .. } => {
-                let base: Vec<f32> = bytemuck::pod_collect_to_vec(buffer.get(index, self.vertex_offset, n * 4));
+                let base: Vec<f32> = bytemuck::pod_collect_to_vec(&buffer.get(index, self.vertex_offset, n * 4));
                 let mut value = base.clone();
                 value.extend_from_slice(&base);
                 value
             }
             PaintPropertyBinderKind::CompositeFunction { .. } => {
-                bytemuck::pod_collect_to_vec(buffer.get(index, self.vertex_offset, 2 * n * 4))
+                bytemuck::pod_collect_to_vec(&buffer.get(index, self.vertex_offset, 2 * n * 4))
             }
         }
     }
@@ -639,7 +651,7 @@ impl CrossFadedPaintPropertyBinder<Image> {
         match &self.kind {
             CrossFadedPaintPropertyBinderKind::Constant { .. } => ([0; 8], [0; 8]),
             CrossFadedPaintPropertyBinderKind::Composite { zoom_in_vertex_vector, zoom_out_vertex_vector, .. } => {
-                let pattern: Vec<u16> = bytemuck::pod_collect_to_vec(buffer.get(index, self.vertex_offset, 8));
+                let pattern: Vec<u16> = bytemuck::pod_collect_to_vec(&buffer.get(index, self.vertex_offset, 8));
                 let zoom_value = if self.state.lock_unpoisoned().crossfade.from_scale == 2.0 {
                     zoom_in_vertex_vector[index]
                 } else {
@@ -709,6 +721,10 @@ pub trait PaintPropertyBinderBase {
         _layer: &dyn GeometryTileLayer,
     ) {
     }
+    /// True if a feature state change rewrites this binder's vertex data.
+    fn depends_on_feature_state(&self) -> bool {
+        false
+    }
     /// `getVertexCount()`.
     fn binder_vertex_count(&self, buffer: &InterleavedVertexBuffer) -> usize;
     /// `applyPaintProperty<Attribute>(attrIndex, attrib)`.
@@ -746,6 +762,15 @@ impl<T: BinderValue> PaintPropertyBinderBase for PaintPropertyBinder<T> {
         layer: &dyn GeometryTileLayer,
     ) {
         self.update_vertex_vectors(buffer, states, layer);
+    }
+    fn depends_on_feature_state(&self) -> bool {
+        match &self.kind {
+            PaintPropertyBinderKind::Constant { .. } => false,
+            PaintPropertyBinderKind::SourceFunction { expression, .. }
+            | PaintPropertyBinderKind::CompositeFunction { expression, .. } => {
+                uses_feature_state(expression.get_expression())
+            }
+        }
     }
     fn binder_vertex_count(&self, buffer: &InterleavedVertexBuffer) -> usize {
         self.get_vertex_count(buffer)
@@ -879,9 +904,9 @@ macro_rules! paint_property_binders {
                 formatted_section: &mln_style::expression::Value,
             ) {
                 let buffer = &mut self.interleaved_vertex_buffer;
-                let new_len = buffer.shared_vertex_vector.len()
-                    + (length - buffer.vertex_count) * buffer.stride;
-                buffer.shared_vertex_vector.resize(new_len, 0);
+                let added = (length - buffer.vertex_count) * buffer.stride;
+                let data = buffer.shared_vertex_vector.get_mut();
+                data.resize(data.len() + added, 0);
 
                 $($crate::paint_property_binder::PaintPropertyBinderBase::populate(
                     &mut self.$field,
@@ -908,9 +933,20 @@ macro_rules! paint_property_binders {
                 layer: &dyn mln_tile_id::geometry_tile_data::GeometryTileLayer,
                 _image_positions: &mln_style_types::image::ImagePositions,
             ) {
+                // Values that moved to the render thread don't depend on
+                // feature state (`depends_on_feature_state`).
+                if self.interleaved_vertex_buffer.shared_vertex_vector.is_moved() {
+                    return;
+                }
                 $($crate::paint_property_binder::PaintPropertyBinderBase::update_vectors(
                     &mut self.$field, &mut self.interleaved_vertex_buffer, states, layer);)+
                 // interleavedVertexBuffer.sharedVertexVector->updateModified(true)
+            }
+
+            /// True if a feature state change rewrites the data-driven values.
+            pub fn depends_on_feature_state(&self) -> bool {
+                false $(|| $crate::paint_property_binder::PaintPropertyBinderBase::depends_on_feature_state(
+                    &self.$field))+
             }
 
             /// `setPatternParameters(posA, posB, crossfade)`.

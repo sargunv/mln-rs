@@ -11,7 +11,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use mln_gfx::index_vector::IndexVectorBase;
 use mln_gfx::shader_group::{ShaderGroupPtr, StringIDSetsPair};
 use mln_gfx::shaders::segment::SegmentBase;
 use mln_gfx::shaders::shader_defines::*;
@@ -41,6 +40,7 @@ use super::heatmap_layer_tweaker::HeatmapLayerTweaker;
 use super::heatmap_texture_layer_tweaker::HeatmapTextureLayerTweaker;
 use super::render_line_layer::apply_color_ramp;
 use super::{drawable_binders_slot, drawable_has_layer_tweaker, drawable_render_tile_slot, shared_vertices};
+use crate::bucket_geometry::{bucket_indexes, bucket_vertices, paint_vertices, released_indexes};
 use crate::buckets::heatmap_bucket::{HeatmapBucket, HeatmapLayoutVertex};
 use crate::change_request::{ChangeRequest, UniqueChangeRequestVec};
 use crate::layer_tweaker::{LayerTweakerPtr, layer_tweaker_slot};
@@ -403,6 +403,7 @@ impl RenderLayer for RenderHeatmapLayer {
             };
             let binders_guard = binders_lock.read_unpoisoned();
             let paint_property_binders = &*binders_guard;
+            let geometry = tile.get_bucket_geometry();
 
             let prev_bucket_id = self.get_render_tile_bucket_id(&tile_id);
             if prev_bucket_id != SimpleIdentity::EMPTY && prev_bucket_id != bucket.base.bucket_id {
@@ -427,7 +428,8 @@ impl RenderLayer for RenderHeatmapLayer {
             let heatmap_vertex_attrs = context.create_vertex_attribute_array();
             {
                 let buffer = &paint_property_binders.interleaved_vertex_buffer;
-                let shared = shared_vertices(&buffer.shared_vertex_vector);
+                let shared =
+                    paint_vertices(geometry, bucket, buffer, paint_property_binders.depends_on_feature_state());
                 let mut attrs = heatmap_vertex_attrs.borrow_mut();
                 let mut id = ID_HEATMAP_WEIGHT_VERTEX_ATTRIBUTE;
                 let b = paint_property_binders;
@@ -468,7 +470,7 @@ impl RenderLayer for RenderHeatmapLayer {
                 0,
             ) {
                 attr.set_shared_raw_data(
-                    Some(shared_vertices(&bucket.vertices)),
+                    Some(bucket_vertices(geometry, bucket, &bucket.vertices)),
                     0, // offsetof(HeatmapLayoutVertex, a1)
                     /*vertex_offset=*/ 0,
                     std::mem::size_of::<HeatmapLayoutVertex>() as u32,
@@ -486,7 +488,7 @@ impl RenderLayer for RenderHeatmapLayer {
             heatmap_builder.set_raw_vertices(Vec::new(), vertex_count, AttributeDataType::Short2);
             heatmap_builder.set_segments_shared(
                 DrawMode::Triangles(),
-                Some(Rc::new(RefCell::new(IndexVectorBase::new(bucket.triangles.clone())))),
+                Some(bucket_indexes(geometry, bucket, &bucket.triangles)),
                 &bucket.segments,
             );
 
@@ -575,7 +577,7 @@ impl RenderLayer for RenderHeatmapLayer {
         }
         heatmap_texture_builder.set_segments_shared(
             DrawMode::Triangles(),
-            Some(Rc::new(RefCell::new(IndexVectorBase::new(RenderStaticData::quad_triangle_indices())))),
+            Some(released_indexes(&RenderStaticData::quad_triangle_indices())),
             &self.segments,
         );
 

@@ -1109,7 +1109,7 @@ impl SymbolLayout {
         let anchor = label_anchor.point;
         let glyph_offset_y = symbol.glyph_offset.y;
         // coordinates (2 triangles)
-        buffer.attribute_data.push(SymbolBucket::layout_attributes(
+        buffer.attribute_data.get_mut().push(SymbolBucket::layout_attributes(
             anchor,
             tl,
             glyph_offset_y,
@@ -1120,7 +1120,7 @@ impl SymbolLayout {
             pixel_offset_tl,
             min_font_scale,
         ));
-        buffer.attribute_data.push(SymbolBucket::layout_attributes(
+        buffer.attribute_data.get_mut().push(SymbolBucket::layout_attributes(
             anchor,
             tr,
             glyph_offset_y,
@@ -1131,7 +1131,7 @@ impl SymbolLayout {
             Point::new(pixel_offset_br.x, pixel_offset_tl.y),
             min_font_scale,
         ));
-        buffer.attribute_data.push(SymbolBucket::layout_attributes(
+        buffer.attribute_data.get_mut().push(SymbolBucket::layout_attributes(
             anchor,
             bl,
             glyph_offset_y,
@@ -1142,7 +1142,7 @@ impl SymbolLayout {
             Point::new(pixel_offset_tl.x, pixel_offset_br.y),
             min_font_scale,
         ));
-        buffer.attribute_data.push(SymbolBucket::layout_attributes(
+        buffer.attribute_data.get_mut().push(SymbolBucket::layout_attributes(
             anchor,
             br,
             glyph_offset_y,

@@ -34,6 +34,7 @@ use mln_vec_map::VecMap;
 use serde::{Deserialize, Serialize};
 
 use crate::bucket::{Bucket, BucketBase, FeatureStates};
+use crate::bucket_geometry::GeometryVec;
 use crate::layout::symbol_instance::SymbolInstance;
 use crate::paint_property_binder::PaintPropertyBinder;
 
@@ -315,8 +316,7 @@ impl PlacedSymbol {
 /// `SymbolBucket::Buffer`.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Buffer {
-    #[serde(with = "pod")]
-    pub attribute_data: Vec<SymbolLayoutVertex>,
+    pub attribute_data: GeometryVec<SymbolLayoutVertex>,
     #[serde(with = "pod")]
     pub dynamic_attribute_data: Vec<SymbolDynamicLayoutVertex>,
     #[serde(with = "pod")]

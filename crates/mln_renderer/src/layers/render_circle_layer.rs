@@ -7,9 +7,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use mln_gfx::index_vector::IndexVectorBase;
 use mln_gfx::shader_group::{ShaderGroupPtr, StringIDSetsPair};
 use mln_gfx::shaders::shader_defines::*;
+use mln_gfx::vertex_vector::VertexVectorBasePtr;
 use mln_gfx::{AttributeDataType, ColorMode, Context, CullFaceMode, DepthMaskType, DrawMode, ShaderRegistry};
 use mln_map_types::TransformState;
 use mln_style::layer::static_immutable_cast;
@@ -25,8 +25,9 @@ use mln_util::sync::RwLockExt;
 use super::circle_layer_tweaker::CircleLayerTweaker;
 use super::{
     TileDrawables, drawable_binders_slot, drawable_has_layer_tweaker, drawable_render_tile_slot,
-    refresh_if_bucket_updated, shared_vertices,
+    refresh_if_bucket_updated,
 };
+use crate::bucket_geometry::{bucket_indexes, bucket_vertices, paint_vertices};
 use crate::buckets::circle_bucket::{CircleBinders, CircleBucket};
 use crate::change_request::{ChangeRequest, UniqueChangeRequestVec};
 use crate::layer_tweaker::{LayerTweakerPtr, layer_tweaker_slot};
@@ -51,17 +52,17 @@ const CIRCLE_SHADER_GROUP_NAME: &str = "CircleShader";
 fn read_circle_attributes(
     attrs: &mut mln_gfx::vertex_attribute::VertexAttributeArray,
     b: &CircleBinders,
+    shared: &VertexVectorBasePtr,
     evaluated: &CirclePaintProperties::PossiblyEvaluated,
     pau: &mut StringIDSetsPair,
 ) {
     let buffer = &b.interleaved_vertex_buffer;
-    let shared = shared_vertices(&buffer.shared_vertex_vector);
     let mut id = ID_CIRCLE_COLOR_VERTEX_ATTRIBUTE;
     read_data_driven_paint_property(
         attrs,
         &b.circle_color,
         buffer,
-        &shared,
+        shared,
         &["a_color"],
         evaluated.get::<CircleColor>().is_constant(),
         pau,
@@ -71,7 +72,7 @@ fn read_circle_attributes(
         attrs,
         &b.circle_radius,
         buffer,
-        &shared,
+        shared,
         &["a_radius"],
         evaluated.get::<CircleRadius>().is_constant(),
         pau,
@@ -81,7 +82,7 @@ fn read_circle_attributes(
         attrs,
         &b.circle_blur,
         buffer,
-        &shared,
+        shared,
         &["a_blur"],
         evaluated.get::<CircleBlur>().is_constant(),
         pau,
@@ -91,7 +92,7 @@ fn read_circle_attributes(
         attrs,
         &b.circle_opacity,
         buffer,
-        &shared,
+        shared,
         &["a_opacity"],
         evaluated.get::<CircleOpacity>().is_constant(),
         pau,
@@ -101,7 +102,7 @@ fn read_circle_attributes(
         attrs,
         &b.circle_stroke_color,
         buffer,
-        &shared,
+        shared,
         &["a_stroke_color"],
         evaluated.get::<CircleStrokeColor>().is_constant(),
         pau,
@@ -111,7 +112,7 @@ fn read_circle_attributes(
         attrs,
         &b.circle_stroke_width,
         buffer,
-        &shared,
+        shared,
         &["a_stroke_width"],
         evaluated.get::<CircleStrokeWidth>().is_constant(),
         pau,
@@ -121,7 +122,7 @@ fn read_circle_attributes(
         attrs,
         &b.circle_stroke_opacity,
         buffer,
-        &shared,
+        shared,
         &["a_stroke_opacity"],
         evaluated.get::<CircleStrokeOpacity>().is_constant(),
         pau,
@@ -388,6 +389,15 @@ impl RenderLayer for RenderCircleLayer {
             };
             let binders_guard = binders_lock.read_unpoisoned();
             let paint_property_binders = &*binders_guard;
+            let geometry = tile.get_bucket_geometry();
+            let paint = || {
+                paint_vertices(
+                    geometry,
+                    bucket,
+                    &paint_property_binders.interleaved_vertex_buffer,
+                    paint_property_binders.depends_on_feature_state(),
+                )
+            };
 
             let prev_bucket_id = self.get_render_tile_bucket_id(&tile_id);
             if prev_bucket_id != SimpleIdentity::EMPTY && prev_bucket_id != bucket.base.bucket_id {
@@ -406,7 +416,13 @@ impl RenderLayer for RenderCircleLayer {
                 let current = drawable_has_layer_tweaker(drawable, &layer_tweaker);
                 if current {
                     refresh_if_bucket_updated(drawable, |attrs| {
-                        read_circle_attributes(attrs, paint_property_binders, evaluated, &mut Default::default())
+                        read_circle_attributes(
+                            attrs,
+                            paint_property_binders,
+                            &paint(),
+                            evaluated,
+                            &mut Default::default(),
+                        )
                     });
                 }
                 current
@@ -422,6 +438,7 @@ impl RenderLayer for RenderCircleLayer {
             read_circle_attributes(
                 &mut circle_vertex_attrs.borrow_mut(),
                 paint_property_binders,
+                &paint(),
                 evaluated,
                 &mut properties_as_uniforms,
             );
@@ -436,7 +453,7 @@ impl RenderLayer for RenderCircleLayer {
                 circle_vertex_attrs.borrow_mut().set(ID_CIRCLE_POS_VERTEX_ATTRIBUTE, -1, AttributeDataType::Invalid, 0)
             {
                 attr.set_shared_raw_data(
-                    Some(shared_vertices(&bucket.vertices)),
+                    Some(bucket_vertices(geometry, bucket, &bucket.vertices)),
                     0, // offsetof(CircleLayoutVertex, a1)
                     0,
                     std::mem::size_of::<crate::buckets::circle_bucket::CircleLayoutVertex>() as u32,
@@ -456,7 +473,7 @@ impl RenderLayer for RenderCircleLayer {
             circle_builder.set_raw_vertices(Vec::new(), vertex_count, AttributeDataType::Short2);
             circle_builder.set_segments_shared(
                 DrawMode::Triangles(),
-                Some(Rc::new(RefCell::new(IndexVectorBase::new(bucket.triangles.clone())))),
+                Some(bucket_indexes(geometry, bucket, &bucket.triangles)),
                 &bucket.segments,
             );
 

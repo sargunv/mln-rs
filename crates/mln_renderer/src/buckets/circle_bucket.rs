@@ -16,12 +16,12 @@ use mln_style::properties::Property;
 use mln_style_types::image::ImagePositions;
 use mln_util::Color;
 use mln_util::immutable::Immutable;
-use mln_util::serialization::payload::pod;
 use mln_util::sync::RwLockExt;
 use mln_vec_map::VecMap;
 use serde::{Deserialize, Serialize};
 
 use crate::bucket::{Bucket, BucketBase};
+use crate::bucket_geometry::GeometryVec;
 use crate::paint_property_binder::PaintPropertyBinder;
 use crate::render_layer::RenderLayer;
 
@@ -48,11 +48,9 @@ pub struct CircleLayoutVertex {
 #[derive(Serialize, Deserialize)]
 pub struct CircleBucket {
     pub base: BucketBase,
-    #[serde(with = "pod")]
-    pub vertices: Vec<CircleLayoutVertex>,
+    pub vertices: GeometryVec<CircleLayoutVertex>,
     /// `gfx::IndexVector<gfx::Triangles>`.
-    #[serde(with = "pod")]
-    pub triangles: Vec<u16>,
+    pub triangles: GeometryVec<u16>,
     pub segments: Vec<SegmentBase>,
     /// Behind `RwLock`s: `update` (feature state) changes them while the
     /// bucket is shared.
@@ -75,8 +73,8 @@ impl CircleBucket {
         }
         CircleBucket {
             base: BucketBase::default(),
-            vertices: Vec::new(),
-            triangles: Vec::new(),
+            vertices: GeometryVec::default(),
+            triangles: GeometryVec::default(),
             segments: Vec::new(),
             paint_property_binders,
             mode,
