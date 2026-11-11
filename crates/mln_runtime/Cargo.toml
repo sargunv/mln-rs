@@ -18,6 +18,7 @@ feature.workspace = true
 mln_actor.workspace = true
 mln_gfx.workspace = true
 mln_map.workspace = true
+mln_math.workspace = true
 mln_renderer.workspace = true
 # The cache database and offline regions.
 mln_storage = { workspace = true, features = ["sqlite"] }

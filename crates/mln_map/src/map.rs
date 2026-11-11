@@ -462,6 +462,13 @@ impl Map {
         self.generation += 1;
     }
 
+    /// Counts a change to state that the map's owner keeps for the map, such
+    /// as which of its events a runtime reports, in the map's
+    /// [`generation`](Self::generation).
+    pub fn record_change(&mut self) {
+        self.changed();
+    }
+
     /// Publishes an update of the map's state for the renderer.
     fn on_update(&mut self) {
         // Each update request comes from a change, so the generation grows

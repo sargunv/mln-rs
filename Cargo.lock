@@ -2400,6 +2400,7 @@ dependencies = [
  "mln-rs-feature",
  "mln-rs-gfx",
  "mln-rs-map",
+ "mln-rs-math",
  "mln-rs-renderer",
  "mln-rs-storage",
  "mln-rs-storage-offline",

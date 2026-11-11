@@ -7,8 +7,8 @@ use std::sync::{Arc, Mutex};
 
 use mln_actor::RunLoopHandle;
 use mln_map::{
-    BoundOptions, Camera, CameraDelta, CameraOptions, CameraUpdate, FreeCameraOptions, MapDebugOptions, MapEvent,
-    MapMode, MapSnapshot, ProjectionMode,
+    AnimationOptions, BoundOptions, Camera, CameraDelta, CameraOptions, CameraUpdate, FreeCameraOptions,
+    MapDebugOptions, MapEvent, MapMode, MapSnapshot, ProjectionMode, TransitionEnd, TransitionOutcome,
 };
 use mln_text::GlyphCache;
 use mln_util::error::{Error, ErrorKind};
@@ -16,6 +16,7 @@ use mln_util::geo::LatLngBounds;
 use mln_util::size::Size;
 use mln_util::sync::MutexExt;
 
+use crate::camera::{self, CameraFitArea, CameraFitOptions, CameraFitUpdate, TileOptions, ViewportOptions};
 use crate::completion::{Completion, Resolver};
 use crate::event::{EventMask, EventSource, RuntimeEvent, RuntimeEventKind};
 use crate::feature_state::{FeatureState, FeatureStateSelector, FeatureStateStore};
@@ -400,8 +401,11 @@ impl Map {
     pub fn set_event_mask(&self, mask: EventMask) -> Result<Completion<Applied>, Error> {
         self.send(
             move |entry, _| {
-                entry.mask = mask;
-                entry.published.event_mask.store(mask.bits(), Ordering::SeqCst);
+                if entry.mask != mask {
+                    entry.mask = mask;
+                    entry.published.event_mask.store(mask.bits(), Ordering::SeqCst);
+                    entry.core.record_change();
+                }
                 Ok(())
             },
             |(), entry| entry.applied(),
@@ -806,9 +810,21 @@ impl Map {
 
     // MARK: - Camera
 
+    /// A command that moves the camera: its animation's end function runs on
+    /// the runtime's thread once the map has published the snapshot that
+    /// shows where the change left the camera, whose generation the end
+    /// reports, and before the command's completion.
+    fn camera_command(
+        &self,
+        apply: impl FnOnce(&mut mln_map::Map, &Ends) -> Result<(), Error> + Send + 'static,
+    ) -> Result<Completion<Applied>, Error> {
+        self.send(move |entry, _| apply(&mut entry.core, &entry.ends), |(), entry| entry.applied())
+    }
+
     /// Moves the camera to absolute values, by a jump, an ease or a flight.
-    pub fn update_camera(&self, update: CameraUpdate) -> Result<Completion<Applied>, Error> {
-        self.command(move |map| {
+    pub fn update_camera(&self, mut update: CameraUpdate) -> Result<Completion<Applied>, Error> {
+        self.camera_command(move |map, ends| {
+            ends.defer(&mut update.animation);
             map.update_camera(&update);
             Ok(())
         })
@@ -817,9 +833,49 @@ impl Map {
     /// Moves the camera relative to where it is, as a gesture does.
     /// Completes with [`ErrorKind::InvalidArgument`](mln_util::ErrorKind) for
     /// a delta that the camera can't apply.
-    pub fn apply_camera_delta(&self, delta: CameraDelta) -> Result<Completion<Applied>, Error> {
-        self.command(move |map| {
+    pub fn apply_camera_delta(&self, mut delta: CameraDelta) -> Result<Completion<Applied>, Error> {
+        self.camera_command(move |map, ends| {
+            ends.defer(&mut delta.animation);
             map.apply_camera_delta(&delta).map_err(|error| Error::invalid_argument(error.to_string()))
+        })
+    }
+
+    /// The camera that fits `area` in the map's view, after the commands
+    /// sent before. It keeps the map's bearing and pitch unless `options`
+    /// sets them, and its zoom stays within the map's zoom limits.
+    ///
+    /// Completes with [`ErrorKind::InvalidArgument`](mln_util::ErrorKind) for
+    /// an empty area, and for padding that leaves no room for it.
+    pub fn camera_for(
+        &self,
+        area: CameraFitArea,
+        options: CameraFitOptions,
+    ) -> Result<Completion<CameraOptions>, Error> {
+        self.query(move |map| camera::camera_for(map, &area, &options))
+    }
+
+    /// Moves the camera to the one that [`camera_for`](Self::camera_for)
+    /// finds once the commands sent before have run, as
+    /// [`update_camera`](Self::update_camera) moves it.
+    ///
+    /// Completes as `camera_for` fails, and then leaves the camera where it
+    /// is and ends the animation as cancelled.
+    pub fn fit_camera(&self, area: CameraFitArea, update: CameraFitUpdate) -> Result<Completion<Applied>, Error> {
+        self.camera_command(move |map, ends| {
+            let CameraFitUpdate { mode, fit, mut animation } = update;
+            ends.defer(&mut animation);
+            match camera::camera_for(map, &area, &fit) {
+                Ok(camera) => {
+                    map.update_camera(&CameraUpdate { mode, camera, animation, ..CameraUpdate::default() });
+                    Ok(())
+                }
+                Err(error) => {
+                    if let Some(end_fn) = &animation.transition_end_fn {
+                        end_fn(&TransitionEnd { outcome: TransitionOutcome::Cancelled, ..TransitionEnd::default() });
+                    }
+                    Err(error)
+                }
+            }
         })
     }
 
@@ -847,9 +903,12 @@ impl Map {
         )
     }
 
-    /// The area that `camera` would show.
+    /// The area that `camera` would show, with the fields that `camera`
+    /// leaves out from the map's camera. It holds every corner of a rotated
+    /// view, and its longitudes can pass ±180, so a view across the
+    /// antimeridian gives one continuous range.
     pub fn lat_lng_bounds_for_camera(&self, camera: CameraOptions) -> Result<Completion<LatLngBounds>, Error> {
-        self.query(move |map| map.lat_lng_bounds_for_camera(&camera))
+        self.query(move |map| map.lat_lng_bounds_for_camera_unwrapped(&camera))
     }
 
     /// Sets the limits on the camera.
@@ -861,6 +920,22 @@ impl Map {
     pub fn set_free_camera_options(&self, camera: FreeCameraOptions) -> Result<Completion<Applied>, Error> {
         self.command(move |map| {
             map.set_free_camera_options(&camera);
+            Ok(())
+        })
+    }
+
+    /// Sets how the map orients and constrains its view.
+    pub fn set_viewport_options(&self, options: ViewportOptions) -> Result<Completion<Applied>, Error> {
+        self.command(move |map| {
+            camera::set_viewport(map, &options);
+            Ok(())
+        })
+    }
+
+    /// Sets how the map picks the tiles to load.
+    pub fn set_tile_options(&self, options: TileOptions) -> Result<Completion<Applied>, Error> {
+        self.command(move |map| {
+            camera::set_tile_options(map, &options);
             Ok(())
         })
     }
@@ -962,6 +1037,7 @@ pub(crate) struct MapEntry {
     session: Option<SessionLink>,
     /// Whether a flush of the map's events is on its way.
     flush_scheduled: Arc<AtomicBool>,
+    ends: Ends,
     pub(crate) feature_state: FeatureStateStore,
     #[expect(dead_code, reason = "the renderers of the map's render sessions read it")]
     pub(crate) tile_cache_enabled: bool,
@@ -973,6 +1049,33 @@ impl MapEntry {
             sequence: self.applied,
             generation: self.core.generation(),
             render_update_generation: self.core.update_generation(),
+        }
+    }
+}
+
+/// The camera changes of a map's commands that ended, which wait to report
+/// their end until the map publishes the snapshot that shows it.
+#[derive(Clone, Default)]
+pub(crate) struct Ends(Arc<Mutex<Vec<(EndFn, TransitionEnd)>>>);
+
+type EndFn = Arc<dyn Fn(&TransitionEnd) + Send + Sync>;
+
+impl Ends {
+    /// Makes `animation`'s end function wait for the snapshot.
+    fn defer(&self, animation: &mut AnimationOptions) {
+        if let Some(end_fn) = animation.transition_end_fn.take() {
+            let ended = self.0.clone();
+            animation.transition_end_fn = Some(Arc::new(move |end: &TransitionEnd| {
+                ended.lock_unpoisoned().push((end_fn.clone(), *end));
+            }));
+        }
+    }
+
+    /// Reports the changes that ended to their commands, after what `outbox`
+    /// holds, with the generation of the snapshot that shows them.
+    fn deliver(&self, generation: u64, outbox: &mut Outbox) {
+        for (end_fn, end) in std::mem::take(&mut *self.0.lock_unpoisoned()) {
+            outbox.push(move || end_fn(&TransitionEnd { generation, ..end }));
         }
     }
 }
@@ -1016,6 +1119,7 @@ pub(crate) fn create(
             pending_still: None,
             session: None,
             flush_scheduled,
+            ends: Ends::default(),
             feature_state: FeatureStateStore::default(),
             tile_cache_enabled: options.tile_cache_enabled,
         },
@@ -1137,7 +1241,9 @@ fn flush(core: &mut RuntimeCore, id: MapId, outbox: &mut Outbox) {
         .filter(|kind| mask.contains(kind.event_type()))
         .map(|kind| RuntimeEvent { source: EventSource::Map(id), generation, kind })
         .collect();
+    let ends = entry.ends.clone();
     core.send_events(events, outbox);
+    ends.deliver(generation, outbox);
 
     if let Some((outcome, Some(pending), applied)) = style_outcome {
         outbox.resolve(pending, outcome.map(|()| applied));
@@ -1158,7 +1264,11 @@ fn remove(core: &mut RuntimeCore, id: MapId, done: Option<Resolver<()>>, outbox:
         if let Some(pending) = entry.pending_still.take() {
             outbox.resolve(pending.resolver, Err(Error::cancelled("the map was released")));
         }
+        // The map's camera changes end as closed as it drops, with no
+        // snapshot to show them.
+        let ends = entry.ends.clone();
         drop(entry);
+        ends.deliver(0, outbox);
     }
     if let Some(done) = done {
         outbox.resolve(done, Ok(()));

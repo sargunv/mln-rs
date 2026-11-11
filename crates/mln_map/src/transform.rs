@@ -230,7 +230,7 @@ impl Transition {
         } else {
             TransitionOutcome::Completed
         });
-        TransitionEnd { outcome, velocity }
+        TransitionEnd { outcome, velocity, generation: 0 }
     }
 
     /// The elapsed share of the duration, in [0, 1]; 1 for an immediate
@@ -1987,8 +1987,7 @@ impl Drop for Transform {
     fn drop(&mut self) {
         for transition in std::mem::take(&mut self.transitions) {
             if let Some(end_fn) = &transition.animation.transition_end_fn {
-                let TransitionEnd { velocity, .. } = transition.end();
-                end_fn(&TransitionEnd { outcome: TransitionOutcome::Closed, velocity });
+                end_fn(&TransitionEnd { outcome: TransitionOutcome::Closed, ..transition.end() });
             }
         }
     }
@@ -2019,7 +2018,7 @@ fn joint_end(animation: &AnimationOptions, count: u32) -> AnimationOptions {
         };
         state.set((remaining - 1, worst));
         if remaining == 1 {
-            end_fn(&TransitionEnd { outcome: worst, velocity: end.velocity });
+            end_fn(&TransitionEnd { outcome: worst, ..*end });
         }
     };
     AnimationOptions { transition_end_fn: Some(Arc::new(joint)), ..animation.clone() }

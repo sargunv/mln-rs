@@ -173,6 +173,11 @@ pub struct TransitionEnd {
     /// frame that moved the camera, which the next gesture can add to its own
     /// release. Zero for every other end.
     pub velocity: CameraVelocity,
+    /// The generation of the first snapshot of the map that shows where the
+    /// change left the camera, as `mln_runtime`'s map handles report it. 0
+    /// when the map closed first, and from the map itself, which ends a
+    /// change before it counts the change's generation.
+    pub generation: u64,
 }
 
 impl AnimationOptions {
