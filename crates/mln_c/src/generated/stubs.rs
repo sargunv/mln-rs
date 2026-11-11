@@ -231,27 +231,6 @@ pub unsafe extern "C" fn mln_camera_for_tile(
     unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_camera_for_tile") }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_delivery_queue_create(
-    options: *const mln_delivery_queue_options,
-    out_queue: *mut mln_delivery_queue,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_delivery_queue_create")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_delivery_queue_dispatch(
-    queue: mln_delivery_queue,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_delivery_queue_dispatch")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_delivery_queue_release(queue: mln_delivery_queue) {}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_frame_pacer_release(pacer: mln_frame_pacer) {}
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_http_header_transform_response_set_header(
@@ -2566,10 +2545,6 @@ pub unsafe extern "C" fn mln_style_expression_get_info(
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_style_expression_release(expression: mln_style_expression) {}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_supported_render_backend_mask() -> mln_render_backend_flags {
-    0
-}
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_vulkan_device_create(
     options: *const mln_vulkan_device_options,

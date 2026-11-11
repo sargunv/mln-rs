@@ -8,11 +8,27 @@
 //! `#[unsafe(no_mangle)] pub unsafe extern "C" fn` with the header's signature
 //! and regenerate; the generated code then checks that signature.
 //! maplibre-native-ffi's ABI suite runs against the library (`just c-abi-test`).
+//!
+//! Each header's functions live in the module of its name. The modules they
+//! share hold the C-only rules: `export!` bodies, `handles`, struct versioning
+//! (`abi`), `buffer`s, `callback` registrations, `delivery` queues and
+//! `completion`s.
 
 // Every export takes raw pointers from C callers.
 #![allow(unsafe_code)]
 
+#[macro_use]
+mod export;
+
+mod abi;
+mod base;
+mod buffer;
+mod callback;
+mod completion;
+mod delivery;
 mod diagnostic;
+mod error;
+mod handles;
 mod plugin;
 
 #[rustfmt::skip]
@@ -23,10 +39,10 @@ mod generated {
     mod signatures;
 }
 
-use generated::types::MLN_C_VERSION;
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
-/// `mln_c_version()`: the API epoch of the headers this library implements.
-#[unsafe(no_mangle)]
-pub extern "C" fn mln_c_version() -> u32 {
-    MLN_C_VERSION
+/// Locks `mutex`, poisoned or not: no code that holds one of this crate's
+/// locks leaves the data half-changed if it panics.
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }

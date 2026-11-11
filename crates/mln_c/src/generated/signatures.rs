@@ -2,9 +2,17 @@
 
 use super::types::*;
 
-const _: unsafe extern "C" fn() -> u32 = crate::mln_c_version;
+const _: unsafe extern "C" fn() -> u32 = crate::base::mln_c_version;
+const _: unsafe extern "C" fn(
+    *const mln_delivery_queue_options,
+    *mut mln_delivery_queue,
+    *mut mln_diagnostic,
+) -> mln_status = crate::delivery::mln_delivery_queue_create;
+const _: unsafe extern "C" fn(mln_delivery_queue, *mut mln_diagnostic) -> mln_status = crate::delivery::mln_delivery_queue_dispatch;
+const _: unsafe extern "C" fn(mln_delivery_queue) = crate::delivery::mln_delivery_queue_release;
 const _: unsafe extern "C" fn(
     *const mln_plugin_descriptor_v1,
     *mut ::core::ffi::c_char,
     usize,
 ) -> mln_plugin_status = crate::plugin::mln_plugin_register_v1;
+const _: unsafe extern "C" fn() -> mln_render_backend_flags = crate::base::mln_supported_render_backend_mask;
