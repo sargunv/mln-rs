@@ -117,7 +117,7 @@ fn start_attempt<A: Connector>(
     let run_connector = details.run_connector.clone();
     let register_shutdown = details.register_shutdown.clone();
     let per_address = per_address.clone();
-    std::thread::Builder::new().name("HTTPFileSource connect".to_owned()).spawn(move || {
+    mln_util::thread::builder("HTTPFileSource connect").spawn(move || {
         // TcpConnector doesn't resolve; a resolver is only required.
         let resolver = DefaultResolver::default();
         let mut addrs = resolver.empty();
@@ -163,9 +163,7 @@ impl Transport {
             let client = client.clone();
             let receiver = receiver.clone();
             // Detached: a worker exits when the channel closes.
-            let _ = std::thread::Builder::new()
-                .name(format!("HTTPFileSource {i}"))
-                .spawn(move || worker(&client, &receiver));
+            let _ = mln_util::thread::builder(format!("HTTPFileSource {i}")).spawn(move || worker(&client, &receiver));
         }
         Transport { requests }
     }

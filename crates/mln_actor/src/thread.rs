@@ -61,8 +61,7 @@ impl<O: 'static> Thread<O> {
         }
         let mailbox = object.mailbox.clone();
         let (running_tx, running_rx) = mpsc::channel::<RunLoopHandle>();
-        let thread = std::thread::Builder::new()
-            .name(name.to_owned())
+        let thread = mln_util::thread::builder(name)
             .spawn(move || {
                 let run_loop = RunLoop::new();
                 let parent = AspiringActor::<O>::with_mailbox(mailbox);

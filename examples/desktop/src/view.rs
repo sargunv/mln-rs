@@ -178,7 +178,9 @@ pub(crate) fn run(launch: Launch) {
     inbox.set_waker(run_loop.handle());
 
     // Finds the system fonts while the surface and the map get ready.
-    let font_discovery = (!args.no_system_fonts).then(|| std::thread::spawn(system_fonts::fallback_font_faces));
+    let font_discovery = (!args.no_system_fonts)
+        .then(|| mln_util::thread::builder("font discovery").spawn(system_fonts::fallback_font_faces).ok())
+        .flatten();
 
     let framebuffer_size = Size::new(size.width, size.height);
     let surface_proxy = proxy.clone();

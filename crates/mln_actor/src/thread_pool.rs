@@ -69,8 +69,7 @@ impl ThreadedScheduler {
 }
 
 fn make_scheduler_thread(shared: Arc<Shared>, index: usize) -> JoinHandle<()> {
-    std::thread::Builder::new()
-        .name(format!("Worker {}", index + 1))
+    mln_util::thread::builder(format!("Worker {}", index + 1))
         .spawn(move || {
             OWNING_THREAD_POOL.with(|p| p.set(Arc::as_ptr(&shared) as usize));
             loop {

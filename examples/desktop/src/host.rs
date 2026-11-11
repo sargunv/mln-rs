@@ -285,7 +285,7 @@ impl ApplicationHandler<UserEvent> for Host {
         self.open = Some(open);
 
         let proxy = self.proxy.clone();
-        let spawned = std::thread::Builder::new().name("render".into()).spawn(move || {
+        let spawned = mln_util::thread::builder("render").spawn(move || {
             // Sent even if the render thread panics, so the window closes.
             struct Ended(EventLoopProxy<UserEvent>);
             impl Drop for Ended {

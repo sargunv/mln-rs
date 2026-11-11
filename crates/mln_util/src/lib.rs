@@ -50,6 +50,7 @@ pub mod serialization;
 pub mod size;
 pub mod string_indexer;
 pub mod sync;
+pub mod thread;
 pub mod tile_server_options;
 pub mod tileset;
 pub mod time;
