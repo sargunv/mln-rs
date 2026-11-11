@@ -11,6 +11,10 @@
 //   workers=<n>            Web Workers for the tiles (default: up to 4)
 //   width, height, ratio   a fixed canvas size in CSS pixels and pixel ratio
 //                          (default: the window and devicePixelRatio)
+//   localIdeographFontFamily=<CSS font-family list>
+//                          the font CJK glyphs are drawn in rather than
+//                          downloaded, as GL JS's option (default:
+//                          sans-serif); empty or `false` downloads them
 //
 // Input: the canvas's pointer, wheel, key and focus events go to the map's
 // Web Worker, whose gesture recognizer (mln_gestures) moves the camera: drag
@@ -39,6 +43,8 @@ const ratio = number('ratio', window.devicePixelRatio || 1);
 canvas.width = Math.round(canvas.clientWidth * ratio);
 canvas.height = Math.round(canvas.clientHeight * ratio);
 
+const localFamily = params.get('localIdeographFontFamily') ?? 'sans-serif';
+
 const module = await WebAssembly.compileStreaming(fetch('./pkg/mln_web_bg.wasm'));
 
 const count = number('workers', Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1)));
@@ -60,6 +66,7 @@ map.postMessage({
   ratio,
   style: new URL(params.get('style') ?? 'https://tiles.openfreemap.org/styles/liberty', location.href).href,
   camera: [number('lat', 52.37), number('lon', 4.89), number('zoom', 13), number('bearing', 0), number('pitch', 0)],
+  localIdeographFontFamily: localFamily === '' || localFamily === 'false' ? undefined : localFamily,
 }, [offscreen, ...ports]);
 
 let markLoaded;
