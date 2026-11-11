@@ -367,7 +367,7 @@ impl Runtime {
         }
         let id = MapId(self.shared.next_map_id.fetch_add(1, Ordering::Relaxed));
         let published = Arc::new(Published::new(options.event_mask));
-        let map = Map::new(MapShared::new(id, self.shared.clone(), published.clone()));
+        let map = Map::new(MapShared::new(id, options.map.map_mode(), self.shared.clone(), published.clone()));
         let (completion, resolver) = self.shared.completion();
         self.shared.post(move |core, outbox| crate::map::create(core, id, options, published, resolver, outbox));
         Ok((map, completion))

@@ -306,3 +306,34 @@ fn with_core_runs_on_the_map_in_its_place() {
     let size = wait(map.with_core(|core| core.get_transform_state().get_size()));
     assert_eq!(Size::new(128, 64), size);
 }
+
+#[test]
+fn a_resize_to_the_same_size_renders_nothing() {
+    let runtime = runtime();
+    let map = map(&runtime);
+    assert_eq!(ErrorKind::InvalidArgument, map.resize(Size::new(0, 64)).unwrap_err().kind);
+    let resized = wait(map.resize(Size::new(128, 64)));
+    let again = wait(map.resize(Size::new(128, 64)));
+    assert_eq!(resized.render_update_generation, again.render_update_generation);
+    assert_eq!(Size::new(128, 64), map.snapshot().unwrap().view.extent.size);
+}
+
+#[test]
+fn only_a_continuous_map_repaints() {
+    let runtime = runtime();
+    let options = map_options();
+    let still = MapOptions { map: options.map.clone().with_map_mode(mln_map::MapMode::Static), ..options };
+    let (map, created) = runtime.create_map(still).unwrap();
+    created.wait().unwrap();
+    assert_eq!(ErrorKind::InvalidState, map.request_repaint().unwrap_err().kind);
+}
+
+#[test]
+fn a_disposed_map_lets_its_runtime_release() {
+    let runtime = runtime();
+    let map = map(&runtime);
+    let clone = map.clone();
+    map.dispose().unwrap();
+    assert_eq!(ErrorKind::InvalidState, clone.dispose().unwrap_err().kind);
+    assert!(eventually(|| runtime.release().is_ok()));
+}

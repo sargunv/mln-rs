@@ -119,7 +119,7 @@ impl UpdateSlot {
         let shown = {
             let mut state = self.shared.state.lock_unpoisoned();
             if state.group_depth == 0 {
-                return Err(Error::invalid_state("No command group is open"));
+                return Err(Error::invalid_state("the map has no open command group"));
             }
             state.group_depth -= 1;
             match state.held.take() {

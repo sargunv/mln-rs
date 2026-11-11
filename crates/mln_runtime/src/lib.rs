@@ -14,6 +14,7 @@
 
 mod completion;
 mod event;
+mod feature_state;
 mod map;
 mod offline;
 mod resources;
@@ -21,6 +22,7 @@ mod runtime;
 
 pub use completion::Completion;
 pub use event::{EventHandler, EventMask, EventSource, EventType, RuntimeEvent, RuntimeEventKind};
+pub use feature_state::{FeatureState, FeatureStateSelector};
 pub use map::{Applied, CameraQuery, CommandGroup, Map, MapId, MapOptions};
 pub use mln_map::MapSnapshot;
 pub use mln_util::{Error, ErrorKind};
