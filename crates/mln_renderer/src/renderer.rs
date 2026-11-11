@@ -7,6 +7,7 @@ use std::rc::{Rc, Weak};
 use std::sync::Arc;
 
 use mln_gfx::{BackendScope, RendererBackend, ScopeType};
+use mln_text::GlyphCache;
 
 use crate::renderer_impl::RendererImpl;
 use crate::renderer_observer::RendererObserver;
@@ -21,10 +22,18 @@ pub struct Renderer {
 
 impl Renderer {
     /// `Renderer(gfx::RendererBackend&, float pixelRatio, const
-    /// std::optional<std::string>& localFontFamily = std::nullopt)`.
+    /// std::optional<std::string>& localFontFamily = std::nullopt)`: a
+    /// renderer with a glyph cache of its own.
     // TODO(port): localFontFamily (glyph rasterization, M5).
     pub fn new(backend: Rc<dyn RendererBackend>, pixel_ratio: f32) -> Self {
-        Renderer { impl_: Some(Box::new(RendererImpl::new(backend, pixel_ratio))) }
+        Self::with_glyph_cache(backend, pixel_ratio, Arc::default())
+    }
+
+    /// `Renderer(gfx::RendererBackend&, float pixelRatio, localFontFamily,
+    /// std::shared_ptr<GlyphCache>)`: renderers given the same `GlyphCache`
+    /// share the glyphs they parse from glyph PBFs.
+    pub fn with_glyph_cache(backend: Rc<dyn RendererBackend>, pixel_ratio: f32, glyph_cache: Arc<GlyphCache>) -> Self {
+        Renderer { impl_: Some(Box::new(RendererImpl::new(backend, pixel_ratio, glyph_cache))) }
     }
 
     fn impl_ref(&self) -> &RendererImpl {

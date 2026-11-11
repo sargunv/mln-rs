@@ -22,6 +22,7 @@ mln_map.workspace = true
 mln_renderer.workspace = true
 mln_storage.workspace = true
 mln_style.workspace = true
+mln_text.workspace = true
 mln_util.workspace = true
 mln_webgpu.workspace = true
 
