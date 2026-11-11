@@ -53,6 +53,15 @@ impl CompletionValue for LentText {
     }
 }
 
+/// A count or a level: `value` is one `uint32_t`.
+impl CompletionValue for u32 {
+    type Item = u32;
+
+    fn lend<R>(&self, f: impl FnOnce(&[u32]) -> R) -> R {
+        f(&[*self])
+    }
+}
+
 type Callback = unsafe extern "C" fn(*mut c_void, *const mln_completion_result);
 
 struct Sink {

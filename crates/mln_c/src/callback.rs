@@ -181,6 +181,12 @@ impl Wake {
         self.accepted.store(true, Ordering::Release);
     }
 
+    /// Gives the user data back to the caller and turns the wake off, for a
+    /// call that fails after it accepted.
+    pub(crate) fn revoke(&self) {
+        self.accepted.store(false, Ordering::Release);
+    }
+
     /// Turns the wake off for good. A call already running finishes.
     pub(crate) fn close(&self) {
         self.closed.store(true, Ordering::Release);

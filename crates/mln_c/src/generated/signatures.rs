@@ -38,6 +38,15 @@ const _: unsafe extern "C" fn(
 ) -> mln_status = crate::render_target::mln_logical_extent_physical_size;
 const _: unsafe extern "C" fn(
     mln_map,
+    *const mln_offscreen_descriptor,
+    *const mln_render_session_attach_options,
+    mln_offscreen_device,
+    *mut mln_render_session,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::offscreen::mln_map_attach_offscreen;
+const _: unsafe extern "C" fn(
+    mln_map,
     *const mln_completion,
     *mut mln_diagnostic,
 ) -> mln_status = crate::map::mln_map_begin_command_group;
@@ -147,6 +156,11 @@ const _: unsafe extern "C" fn(
 ) -> mln_status = crate::map::mln_map_request_repaint;
 const _: unsafe extern "C" fn(
     mln_map,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::map::mln_map_request_still_image;
+const _: unsafe extern "C" fn(
+    mln_map,
     mln_logical_size,
     *const mln_completion,
     *mut mln_diagnostic,
@@ -181,6 +195,12 @@ const _: unsafe extern "C" fn(
     *mut mln_diagnostic,
 ) -> mln_status = crate::runtime::mln_network_get_status;
 const _: unsafe extern "C" fn(mln_network_status, *mut mln_diagnostic) -> mln_status = crate::runtime::mln_network_set_status;
+const _: unsafe extern "C" fn(
+    *const mln_offscreen_device_options,
+    *mut mln_offscreen_device,
+    *mut mln_diagnostic,
+) -> mln_status = crate::offscreen::mln_offscreen_device_create;
+const _: unsafe extern "C" fn(mln_offscreen_device) = crate::offscreen::mln_offscreen_device_release;
 const _: unsafe extern "C" fn() -> mln_open_gl_context_provider_flags = crate::render_target::mln_open_gl_supported_context_provider_mask;
 const _: unsafe extern "C" fn(
     *const mln_plugin_descriptor_v1,
@@ -192,6 +212,130 @@ const _: unsafe extern "C" fn(
     *mut mln_projected_meters,
     *mut mln_diagnostic,
 ) -> mln_status = crate::projection::mln_projected_meters_for_lat_lng;
+const _: unsafe extern "C" fn(mln_render_frame_batch) = crate::render_session::mln_render_frame_batch_release;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *mut mln_render_abandon_result,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_abandon;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_barrier;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_clear_data;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *const mln_frame_demand,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_demand_frame;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_detach;
+const _: unsafe extern "C" fn(mln_render_session, *mut mln_diagnostic) -> mln_status = crate::render_session::mln_render_session_dispose;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *mut mln_render_frame_batch,
+    *mut mln_render_frame_batch_view,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_drain_frame_results;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_dump_debug_logs;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *mut mln_render_session_capabilities,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_get_capabilities;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    mln_buffer_view,
+    u32,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::query::mln_render_session_get_cluster_children;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    mln_buffer_view,
+    u32,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::query::mln_render_session_get_cluster_expansion_zoom;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    mln_buffer_view,
+    u32,
+    u32,
+    u32,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::query::mln_render_session_get_cluster_leaves;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *mut ::core::ffi::c_char,
+    usize,
+    *mut usize,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_get_failure;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *mut mln_render_session_snapshot,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_get_snapshot;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *const mln_rendered_query_geometry,
+    *const mln_rendered_feature_query_options,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::query::mln_render_session_query_rendered_features;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    mln_buffer_view,
+    *const mln_source_feature_query_options,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::query::mln_render_session_query_source_features;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::texture::mln_render_session_read_texture;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_reduce_memory_use;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_release;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_release_target;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    mln_logical_size,
+    *const mln_completion,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_resize;
+const _: unsafe extern "C" fn(mln_render_session, *mut mln_diagnostic) -> mln_status = crate::render_session::mln_render_session_service_driver_work;
+const _: unsafe extern "C" fn(
+    mln_render_session,
+    mln_frame_pacer,
+    *mut mln_diagnostic,
+) -> mln_status = crate::render_session::mln_render_session_set_frame_pacer;
 const _: unsafe extern "C" fn(
     mln_runtime,
     *const mln_completion,

@@ -434,18 +434,6 @@ pub unsafe extern "C" fn mln_map_attach_metal_surface(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_attach_offscreen(
-    map: mln_map,
-    descriptor: *const mln_offscreen_descriptor,
-    options: *const mln_render_session_attach_options,
-    device: mln_offscreen_device,
-    out_session: *mut mln_render_session,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_attach_offscreen") }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_attach_ohos_surface(
     map: mln_map,
     descriptor: *const mln_ohos_surface_descriptor,
@@ -937,16 +925,6 @@ pub unsafe extern "C" fn mln_map_remove_style_source(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_map_request_still_image(
-    map: mln_map,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_map_request_still_image")
-    }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_map_set_bounds(
     map: mln_map,
     options: *const mln_bound_options,
@@ -1274,18 +1252,6 @@ pub unsafe extern "C" fn mln_map_update_camera(
     unsafe { crate::diagnostic::unsupported(out_diagnostic, "mln_map_update_camera") }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_offscreen_device_create(
-    options: *const mln_offscreen_device_options,
-    out_device: *mut mln_offscreen_device,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_offscreen_device_create")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_offscreen_device_release(device: mln_offscreen_device) {}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_ohos_frame_pacer_create(
     options: *const mln_frame_pacer_options,
     out_pacer: *mut mln_frame_pacer,
@@ -1298,18 +1264,6 @@ pub unsafe extern "C" fn mln_ohos_frame_pacer_create(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_plugin_get_register_function_v1() -> mln_plugin_register_function_v1 {
     None
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_frame_batch_release(batch: mln_render_frame_batch) {}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_abandon(
-    session: mln_render_session,
-    out_result: *mut mln_render_abandon_result,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_render_session_abandon")
-    }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_render_session_acquire_frame(
@@ -1325,263 +1279,6 @@ pub unsafe extern "C" fn mln_render_session_acquire_frame(
     }
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_barrier(
-    session: mln_render_session,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_render_session_barrier")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_clear_data(
-    session: mln_render_session,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_render_session_clear_data")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_demand_frame(
-    session: mln_render_session,
-    demand: *const mln_frame_demand,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_render_session_demand_frame")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_detach(
-    session: mln_render_session,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_render_session_detach")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_dispose(
-    session: mln_render_session,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_render_session_dispose")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_drain_frame_results(
-    session: mln_render_session,
-    out_batch: *mut mln_render_frame_batch,
-    out_view: *mut mln_render_frame_batch_view,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_render_session_drain_frame_results",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_dump_debug_logs(
-    session: mln_render_session,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_render_session_dump_debug_logs",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_get_capabilities(
-    session: mln_render_session,
-    out_capabilities: *mut mln_render_session_capabilities,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_render_session_get_capabilities",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_get_cluster_children(
-    session: mln_render_session,
-    source_id: mln_buffer_view,
-    cluster_id: u32,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_render_session_get_cluster_children",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_get_cluster_expansion_zoom(
-    session: mln_render_session,
-    source_id: mln_buffer_view,
-    cluster_id: u32,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_render_session_get_cluster_expansion_zoom",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_get_cluster_leaves(
-    session: mln_render_session,
-    source_id: mln_buffer_view,
-    cluster_id: u32,
-    limit: u32,
-    offset: u32,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_render_session_get_cluster_leaves",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_get_failure(
-    session: mln_render_session,
-    out_message: *mut ::core::ffi::c_char,
-    message_capacity: usize,
-    out_message_length: *mut usize,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_render_session_get_failure")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_get_snapshot(
-    session: mln_render_session,
-    out_snapshot: *mut mln_render_session_snapshot,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_render_session_get_snapshot")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_query_rendered_features(
-    session: mln_render_session,
-    geometry: *const mln_rendered_query_geometry,
-    options: *const mln_rendered_feature_query_options,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_render_session_query_rendered_features",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_query_source_features(
-    session: mln_render_session,
-    source_id: mln_buffer_view,
-    options: *const mln_source_feature_query_options,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_render_session_query_source_features",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_read_texture(
-    session: mln_render_session,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_render_session_read_texture")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_reduce_memory_use(
-    session: mln_render_session,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_render_session_reduce_memory_use",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_release(
-    session: mln_render_session,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_render_session_release")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_release_target(
-    session: mln_render_session,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_render_session_release_target",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_resize(
-    session: mln_render_session,
-    logical_size: mln_logical_size,
-    completion: *const mln_completion,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(out_diagnostic, "mln_render_session_resize")
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_service_driver_work(
-    session: mln_render_session,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_render_session_service_driver_work",
-        )
-    }
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn mln_render_session_set_android_surface_target(
     session: mln_render_session,
     replacement: *const mln_android_surface_replacement,
@@ -1592,19 +1289,6 @@ pub unsafe extern "C" fn mln_render_session_set_android_surface_target(
         crate::diagnostic::unsupported(
             out_diagnostic,
             "mln_render_session_set_android_surface_target",
-        )
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mln_render_session_set_frame_pacer(
-    session: mln_render_session,
-    pacer: mln_frame_pacer,
-    out_diagnostic: *mut mln_diagnostic,
-) -> mln_status {
-    unsafe {
-        crate::diagnostic::unsupported(
-            out_diagnostic,
-            "mln_render_session_set_frame_pacer",
         )
     }
 }

@@ -34,7 +34,7 @@ pub(crate) struct MapObject {
     handles: Arc<MapHandles>,
     /// The scale factor as the caller gave it, which the map's views report
     /// rather than the map's single-precision pixel ratio.
-    scale_factor: f64,
+    pub(crate) scale_factor: f64,
 }
 
 static MAPS: HandleTable<MapObject> = HandleTable::new(HandleKind::Map);
@@ -47,7 +47,7 @@ pub(crate) fn resolve(map: mln_map) -> Result<Arc<MapObject>, Error> {
 /// The generations that a command's completion reports: those it applied
 /// at, or for a failure, those of the map's latest snapshot, which the
 /// failure's events carry.
-fn generations(map: &::mln_runtime::Map, result: &Result<Applied, mln_util::Error>) -> Generations {
+pub(crate) fn generations(map: &::mln_runtime::Map, result: &Result<Applied, mln_util::Error>) -> Generations {
     match result {
         Ok(applied) => Generations { snapshot: applied.generation, render_update: applied.render_update_generation },
         Err(_) => map.snapshot().map_or(Generations::default(), |snapshot| Generations {
@@ -485,6 +485,23 @@ pub unsafe extern "C" fn mln_map_get_style_url(
     })
 }
 
+/// `mln_map_request_still_image()`.
+///
+/// # Safety
+///
+/// Each pointer is null or valid for the header's use of it.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mln_map_request_still_image(
+    map: mln_map,
+    completion: *const mln_completion,
+    out_diagnostic: *mut mln_diagnostic,
+) -> mln_status {
+    export!(out_diagnostic, {
+        // SAFETY: the caller's contract.
+        unsafe { query(map, completion, ::mln_runtime::Map::request_still_image, |()| ()) }
+    })
+}
+
 // MARK: - Feature state
 
 /// The text of a caller's view, which may be empty but never null with a
@@ -656,7 +673,7 @@ pub unsafe extern "C" fn mln_map_remove_feature_state(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use core::ffi::c_void;
     use std::sync::mpsc;
 
@@ -670,7 +687,7 @@ mod tests {
 
     const NO_DIAGNOSTIC: *mut mln_diagnostic = core::ptr::null_mut();
 
-    fn options(scale_factor: f64) -> mln_map_options {
+    pub(crate) fn options(scale_factor: f64) -> mln_map_options {
         // SAFETY: zeros are valid options, which the fields below complete.
         let mut options: mln_map_options = unsafe { core::mem::zeroed() };
         options.size = size_of::<mln_map_options>() as u32;
@@ -678,7 +695,7 @@ mod tests {
         options
     }
 
-    fn create_map(runtime: mln_runtime, options: &mln_map_options) -> mln_map {
+    pub(crate) fn create_map(runtime: mln_runtime, options: &mln_map_options) -> mln_map {
         let waiter = Waiter::new();
         let mut map = 0;
         // SAFETY: local arguments.
@@ -688,7 +705,7 @@ mod tests {
         map
     }
 
-    fn release_map(map: mln_map) {
+    pub(crate) fn release_map(map: mln_map) {
         let waiter = Waiter::new();
         // SAFETY: a local completion.
         assert_eq!(unsafe { mln_map_release(map, &waiter.descriptor, NO_DIAGNOSTIC) }, MLN_STATUS_OK);
@@ -704,7 +721,7 @@ mod tests {
         snapshot
     }
 
-    fn view(text: &str) -> mln_buffer_view {
+    pub(crate) fn view(text: &str) -> mln_buffer_view {
         mln_buffer_view { data: text.as_ptr().cast(), size: text.len() }
     }
 

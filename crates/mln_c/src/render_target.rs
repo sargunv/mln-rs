@@ -6,7 +6,7 @@ use crate::generated::types::{mln_diagnostic, mln_logical_extent, mln_open_gl_co
 /// The pixels that a logical extent covers: each dimension times the scale
 /// factor, rounded up so that a target never has a fraction of a pixel too
 /// few.
-fn physical_size(extent: mln_logical_extent) -> Result<(u32, u32), Error> {
+pub(crate) fn physical_size(extent: mln_logical_extent) -> Result<(u32, u32), Error> {
     let mln_logical_extent { width, height, scale_factor } = extent;
     if width == 0 || height == 0 || !scale_factor.is_finite() || scale_factor <= 0.0 {
         return Err(Error::invalid_argument("extent dimensions and scale_factor must be positive"));

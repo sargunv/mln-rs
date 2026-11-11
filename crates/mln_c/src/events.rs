@@ -248,7 +248,7 @@ fn camera_change(change: CameraChange) -> mln_runtime_event_camera_change {
     mln_runtime_event_camera_change { mode, source }
 }
 
-fn render_mode(mode: RenderMode) -> u32 {
+pub(crate) fn render_mode(mode: RenderMode) -> u32 {
     match mode {
         RenderMode::Partial => MLN_RENDER_MODE_PARTIAL,
         RenderMode::Full => MLN_RENDER_MODE_FULL,
