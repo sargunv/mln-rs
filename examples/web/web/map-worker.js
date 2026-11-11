@@ -23,7 +23,7 @@ onmessage = ({ data }) => {
   else early.push(data);
 };
 
-async function run({ module, canvas, ports, width, height, ratio, style, camera }) {
+async function run({ module, canvas, ports, width, height, ratio, style, fallbackFontFaces, camera }) {
   await init({ module_or_path: module });
 
   // The map's work between frames (finished fetches, worker replies, queued
@@ -58,6 +58,7 @@ async function run({ module, canvas, ports, width, height, ratio, style, camera 
     };
   });
 
+  if (fallbackFontFaces) map.set_fallback_font_faces(fallbackFontFaces);
   map.set_style_url(style);
   map.jump_to(...camera);
   const started = performance.now();

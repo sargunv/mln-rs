@@ -225,7 +225,8 @@ pub struct Impl {
     glyph_url: String,
     /// symbols: `std::shared_ptr<FontFaces> fontFaces`.
     font_faces: Option<std::sync::Arc<mln_text::glyph::FontFaces>>,
-    // TODO(port): fontFaces (MLN_TEXT_SHAPING_HARFBUZZ, M5).
+    /// symbols: `std::shared_ptr<FontFaces> fallbackFontFaces`.
+    fallback_font_faces: Option<std::sync::Arc<mln_text::glyph::FontFaces>>,
     sources: CollectionWithPersistentOrder<dyn Source>,
     /// The source impls with the changes made through the sources since the
     /// collection's last update (see get_source_impls), keyed by the
@@ -299,6 +300,7 @@ impl Impl {
             json: String::new(),
             glyph_url: String::new(),
             font_faces: None,
+            fallback_font_faces: None,
             sources: CollectionWithPersistentOrder::default(),
             source_impls_cache: RefCell::new(None),
             source_observer,
@@ -460,6 +462,12 @@ impl Impl {
         }
         self.glyph_url = parser.glyph_url.clone();
         self.font_faces = parser.font_faces.clone();
+        if let Some(fallback) = self.fallback_font_faces.as_ref().filter(|faces| !faces.is_empty()) {
+            // The style's own faces come first, so they win where both cover a font.
+            let mut merged = self.font_faces.as_deref().cloned().unwrap_or_default();
+            merged.extend(fallback.iter().cloned());
+            self.font_faces = Some(std::sync::Arc::new(merged));
+        }
         self.loaded = true;
         self.observer().on_style_loaded();
     }
@@ -711,6 +719,11 @@ impl Impl {
     /// symbols: `getFontFaces()`.
     pub fn get_font_faces(&self) -> Option<std::sync::Arc<mln_text::glyph::FontFaces>> {
         self.font_faces.clone()
+    }
+
+    /// symbols: `setFallbackFontFaces(faces)`.
+    pub fn set_fallback_font_faces(&mut self, faces: Option<std::sync::Arc<mln_text::glyph::FontFaces>>) {
+        self.fallback_font_faces = faces;
     }
 
     pub fn get_glyph_url(&self) -> &str {

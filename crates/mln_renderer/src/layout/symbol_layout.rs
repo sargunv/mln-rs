@@ -97,6 +97,15 @@ fn get_char_glyph_id_type(
         }
     }
 
+    // A face without a name is a fallback for every font stack.
+    for face in faces.iter().filter(|face| face.name.is_empty()) {
+        for range in &face.ranges {
+            if u32::from(ch) >= range.0 && u32::from(ch) <= range.1 {
+                return face.type_;
+            }
+        }
+    }
+
     GlyphIDType::FontPBF
 }
 

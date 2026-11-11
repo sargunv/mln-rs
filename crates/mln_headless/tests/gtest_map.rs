@@ -2461,6 +2461,38 @@ fn tile_selection_options_publish_updates() {
     check(&mut map, &frontend, Map::set_tile_lod_mode, |p| p.tile_lod_mode, TileLodMode::Distance);
 }
 
+// gtest: Map.FallbackFontFacesCoverEveryFontStack
+#[test]
+fn fallback_font_faces_cover_every_font_stack() {
+    let test = MapTest::new();
+    let requested = Rc::new(RefCell::new(Vec::<String>::new()));
+    let r = requested.clone();
+    test.file_source.set_response(Kind::Glyphs, move |resource: &Resource| {
+        r.borrow_mut().push(resource.url.clone());
+        let mut response = Response::new();
+        response.error = Some(Box::new(ResponseError::new(Reason::NotFound, "not found")));
+        Some(response)
+    });
+
+    test.map()
+        .get_style_mut()
+        .set_fallback_font_faces(r#"[{"url": "fallback.ttf", "unicode-range": ["U+1000-109F"]}]"#)
+        .unwrap();
+    test.load_json(
+        r#"{
+        "version": 8,
+        "sources": {"point": {"type": "geojson", "data": {
+            "type": "Feature", "properties": {"name": "မြန်မာ"}, "geometry": {"type": "Point", "coordinates": [0, 0]}}}},
+        "glyphs": "{fontstack}/{range}.pbf",
+        "layers": [{"id": "symbol", "type": "symbol", "source": "point",
+                    "layout": {"text-field": ["get", "name"], "text-font": ["Any Font"]}}]
+    }"#,
+    );
+    let _ = test.try_render();
+
+    assert!(requested.borrow().iter().any(|url| url == "fallback.ttf"));
+}
+
 /// `ColorRampGlobalStateTest.RendersCurrentStateAfterUnrelatedStateChange`
 /// for a layer type: "line", "heatmap" or "color-relief".
 fn color_ramp_renders_current_state_after_unrelated_state_change(type_: &str) {

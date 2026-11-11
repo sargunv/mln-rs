@@ -2,7 +2,7 @@
 // src/mln/text/glyph.cpp.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use mln_style_types::image::RectU16;
 use mln_util::font_stack::{FontStack, font_stack_to_string};
@@ -258,7 +258,43 @@ impl Shaping {
 /// `FontFace::Range`.
 pub type FontFaceRange = (u32, u32);
 
-/// `FontFace`: style defined faces.
+/// The bytes of a font file that an app already holds, such as a
+/// memory-mapped file, shared without a copy.
+#[derive(Clone)]
+pub struct FontData(Arc<dyn AsRef<[u8]> + Send + Sync>);
+
+impl FontData {
+    pub fn new(bytes: Arc<dyn AsRef<[u8]> + Send + Sync>) -> Self {
+        FontData(bytes)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        (*self.0).as_ref()
+    }
+}
+
+impl From<Arc<Vec<u8>>> for FontData {
+    fn from(bytes: Arc<Vec<u8>>) -> Self {
+        FontData(bytes)
+    }
+}
+
+impl std::fmt::Debug for FontData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Not the bytes: they may load on first access.
+        f.write_str("FontData")
+    }
+}
+
+/// Equal when both share the same bytes.
+impl PartialEq for FontData {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+/// `FontFace`: style defined faces. A face without a name is a fallback,
+/// which every font stack uses after the faces that name one of its fonts.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct FontFace {
     /// an unique glyph id
@@ -269,11 +305,30 @@ pub struct FontFace {
     pub url: String,
     /// unicode ranges
     pub ranges: Vec<FontFaceRange>,
+    /// The font file itself, which the map then uses instead of fetching
+    /// `url`. Left out of the faces that workers get, which don't read
+    /// font files.
+    #[serde(skip)]
+    pub data: Option<FontData>,
 }
 
 impl FontFace {
     pub fn new(name: &str, url: &str, ranges: Vec<FontFaceRange>) -> Self {
-        FontFace { type_: GlyphIDType::FontPBF, name: name.to_string(), url: url.to_string(), ranges }
+        FontFace { type_: GlyphIDType::FontPBF, name: name.to_string(), url: url.to_string(), ranges, data: None }
+    }
+
+    /// A fallback face, without a name, for the font file at `url`, which
+    /// draws the code points in `ranges`, with its glyph type.
+    pub fn fallback(url: &str, ranges: Vec<FontFaceRange>) -> Self {
+        let mut face = FontFace::new("", url, ranges);
+        face.type_ = gen_new_glyph_id_type(&face.url, &FontStack::new(), &face.ranges);
+        face
+    }
+
+    /// The face with its font file in memory, so that `url` only names it.
+    pub fn with_data(mut self, data: FontData) -> Self {
+        self.data = Some(data);
+        self
     }
 
     pub fn valid(&self) -> bool {

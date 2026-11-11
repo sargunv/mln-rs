@@ -13,8 +13,9 @@ use mln_storage::stub_file_source::{ResponseType, StubFileSource};
 use mln_storage::{FileSource, Kind, Resource, Response};
 use mln_text::HBShapeAdjust;
 use mln_text::glyph::{
-    FontFace, GLYPH_RANGES_PER_FONT_STACK, GLYPHS_PER_GLYPH_RANGE, Glyph, GlyphDependencies, GlyphID, GlyphIDType,
-    GlyphIDs, GlyphMap, GlyphMetrics, GlyphRange, HBShapeRequests, NON_IDEOGRAPH_GLYPH_RANGES_PER_FONT_STACK,
+    FontData, FontFace, GLYPH_RANGES_PER_FONT_STACK, GLYPHS_PER_GLYPH_RANGE, Glyph, GlyphDependencies, GlyphID,
+    GlyphIDType, GlyphIDs, GlyphMap, GlyphMetrics, GlyphRange, HBShapeRequests,
+    NON_IDEOGRAPH_GLYPH_RANGES_PER_FONT_STACK,
 };
 use mln_text::local_glyph_rasterizer::LocalGlyphRasterizer;
 use mln_text::tagged_string::font_stack_hash;
@@ -564,8 +565,13 @@ fn font_face_test(engine: &Arc<DeferredEngine>) -> GlyphManagerTest {
         response.data = Some(Arc::new(b"font".to_vec()));
         Some(response)
     });
-    let face =
-        FontFace { type_: FONT_FACE, name: "Test Stack".to_owned(), url: "test://face.ttf".to_owned(), ranges: vec![] };
+    let face = FontFace {
+        type_: FONT_FACE,
+        name: "Test Stack".to_owned(),
+        url: "test://face.ttf".to_owned(),
+        ranges: vec![],
+        data: None,
+    };
     test.glyph_manager.set_font_faces(Some(Arc::new(vec![face])));
     test._log = Some(SquelchLog::new());
     test
@@ -634,4 +640,25 @@ fn font_face_engine_failure_leaves_the_face_out() {
     let glyphs = available.borrow_mut().take().expect("notified");
     assert!(glyphs[&font_stack_hash(&test_stack())][&GlyphID::with_type(0, FONT_FACE)].is_none());
     assert!(test.glyph_manager.get_hb_shaper(&test_stack(), FONT_FACE).is_none());
+}
+
+// Port-only: a face that holds its font file, as an app's fallback faces
+// can, loads it without a request.
+#[test]
+fn font_face_with_data_needs_no_request() {
+    let engine = Arc::new(DeferredEngine::default());
+    let test = font_face_test(&engine);
+    test.file_source.set_response(Kind::Glyphs, |resource: &Resource| -> Option<Response> {
+        panic!("requested {}", resource.url);
+    });
+    let face = FontFace { type_: FONT_FACE, ..FontFace::new("", "app://face.ttf", vec![(0, 0xFFFF)]) }
+        .with_data(FontData::new(Arc::new(b"font".to_vec())));
+    test.glyph_manager.set_font_faces(Some(Arc::new(vec![face])));
+    engine.report(Ok(()));
+
+    let available = request_font_face(&test);
+    test.run_loop.run_once();
+    assert_eq!(engine.loads.load(Ordering::SeqCst), 1);
+    let glyphs = available.borrow_mut().take().expect("notified");
+    assert!(glyphs[&font_stack_hash(&test_stack())][&GlyphID::with_type(0, FONT_FACE)].is_some());
 }

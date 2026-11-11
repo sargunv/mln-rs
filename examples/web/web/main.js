@@ -7,6 +7,10 @@
 //
 // URL parameters:
 //   style=<url>            the style (default: OpenFreeMap Liberty)
+//   fallbackFontFaces=<json>
+//                          font files that every font stack falls back to, as
+//                          in a style's font-faces entry without a font name:
+//                          [{"url": "...", "unicode-range": ["U+1000-109F"]}]
 //   lat, lon, zoom, bearing, pitch
 //   workers=<n>            Web Workers for the tiles (default: up to 4)
 //   width, height, ratio   a fixed canvas size in CSS pixels and pixel ratio
@@ -59,6 +63,7 @@ map.postMessage({
   height: canvas.clientHeight,
   ratio,
   style: new URL(params.get('style') ?? 'https://tiles.openfreemap.org/styles/liberty', location.href).href,
+  fallbackFontFaces: params.get('fallbackFontFaces'),
   camera: [number('lat', 52.37), number('lon', 4.89), number('zoom', 13), number('bearing', 0), number('pitch', 0)],
 }, [offscreen, ...ports]);
 

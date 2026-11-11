@@ -255,6 +255,14 @@ impl WebMap {
         })
     }
 
+    /// Sets the font faces that every font stack of the styles loaded from
+    /// now on falls back to: `json` is an array of font files, each an
+    /// object with a `url` and an optional `unicode-range`, as in a font
+    /// face of a style's `font-faces`.
+    pub fn set_fallback_font_faces(&mut self, json: &str) -> Result<(), JsValue> {
+        self.map.get_style_mut().set_fallback_font_faces(json).map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
     /// Loads a style from a URL.
     pub fn set_style_url(&mut self, url: &str) {
         self.map.get_style_mut().load_url(url);
