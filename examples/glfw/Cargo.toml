@@ -30,6 +30,7 @@ doc = false
 
 [dependencies]
 feature.workspace = true
+fontdb.workspace = true
 glfw.workspace = true
 mln_actor.workspace = true
 mln_gestures.workspace = true
@@ -41,9 +42,11 @@ mln_renderer = { workspace = true, features = ["font-face-shaper"] }
 # The ambient cache and mbtiles:// sources, as in C++.
 mln_storage = { workspace = true, features = ["sqlite"] }
 mln_style.workspace = true
+mln_text.workspace = true
 mln_util.workspace = true
 mln_webgpu.workspace = true
 serde_json.workspace = true
+skrifa.workspace = true
 wgpu.workspace = true
 
 # Loads the OpenFreeMap Liberty style over HTTPS through the Map's file
@@ -53,6 +56,13 @@ wgpu.workspace = true
 [[test]]
 name = "liberty_style_test"
 path = "tests/liberty_style_test.rs"
+
+# Finds and maps the system fonts the app gives the map as fallback font
+# faces, and lists them: `cargo test -p mln-rs-glfw --test system_fonts_test
+# -- --nocapture`.
+[[test]]
+name = "system_fonts_test"
+path = "tests/system_fonts_test.rs"
 
 [lints]
 workspace = true

@@ -100,6 +100,9 @@ flate2 = { version = "1.1.11", default-features = false, features = ["zlib"] }
 # prebuilt libraries in a build script; raw window handles give wgpu its
 # surface.
 glfw = { version = "0.63.0", default-features = false, features = ["dynamic-link", "raw-window-handle-v0-6", "wayland", "x11"] }
+# examples/glfw: finds the system fonts it gives the map as fallback font
+# faces, and maps their files instead of reading them.
+fontdb = { version = "0.24.0", default-features = false, features = ["fs", "memmap"] }
 harfrust = { version = "0.15.0" }
 # The HTTP test server of the tests (tools/test-server).
 httpmock = { version = "0.9.0", default-features = false }
