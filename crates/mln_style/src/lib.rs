@@ -55,6 +55,7 @@ pub mod sources;
 pub mod sprite;
 pub mod style;
 pub mod style_impl;
+mod style_json;
 pub mod style_property;
 pub mod transition_options;
 pub mod undefined;

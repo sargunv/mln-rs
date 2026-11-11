@@ -98,13 +98,13 @@ impl ConversionTraits for Value {
     /// The JSON front end's conversion of the JSON the value stringifies to
     /// (the GeoJSON argument of "within" and "distance").
     fn to_geojson(&self, error: &mut Error) -> Option<geojson::GeoJSON> {
-        crate::json_conversion::to_geojson(&to_json(self), error)
+        crate::json_conversion::to_geojson(&value_to_json(self), error)
     }
 }
 
-/// rapidjson's `stringify(Value)`, as a `serde_json::Value`; a non-finite
-/// double has no JSON form and becomes `null`.
-fn to_json(value: &Value) -> serde_json::Value {
+/// The JSON form of a value. A non-finite double has no JSON form and
+/// becomes `null`.
+pub fn value_to_json(value: &Value) -> serde_json::Value {
     match value {
         Value::Null => serde_json::Value::Null,
         Value::Bool(b) => serde_json::Value::Bool(*b),
@@ -112,8 +112,8 @@ fn to_json(value: &Value) -> serde_json::Value {
         Value::Int(i) => serde_json::Value::from(*i),
         Value::Double(d) => serde_json::Number::from_f64(*d).map_or(serde_json::Value::Null, serde_json::Value::Number),
         Value::String(s) => serde_json::Value::String(s.clone()),
-        Value::Array(a) => serde_json::Value::Array(a.iter().map(to_json).collect()),
-        Value::Object(o) => serde_json::Value::Object(o.iter().map(|(k, v)| (k.clone(), to_json(v))).collect()),
+        Value::Array(a) => serde_json::Value::Array(a.iter().map(value_to_json).collect()),
+        Value::Object(o) => serde_json::Value::Object(o.iter().map(|(k, v)| (k.clone(), value_to_json(v))).collect()),
     }
 }
 

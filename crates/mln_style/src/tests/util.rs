@@ -87,22 +87,7 @@ pub fn parse_json(json: &str) -> serde_json::Value {
     serde_json::from_str(json).expect("test JSON must parse")
 }
 
-/// rapidjson `stringify(writer, Value)` for the round-trip tests.
-pub fn value_to_json(value: &feature::Value) -> serde_json::Value {
-    use feature::Value;
-    match value {
-        Value::Null => serde_json::Value::Null,
-        Value::Bool(b) => serde_json::Value::Bool(*b),
-        Value::Uint(u) => serde_json::Value::from(*u),
-        Value::Int(i) => serde_json::Value::from(*i),
-        Value::Double(d) => {
-            serde_json::Number::from_f64(*d).map(serde_json::Value::Number).unwrap_or(serde_json::Value::Null)
-        }
-        Value::String(s) => serde_json::Value::String(s.clone()),
-        Value::Array(a) => serde_json::Value::Array(a.iter().map(value_to_json).collect()),
-        Value::Object(o) => serde_json::Value::Object(o.iter().map(|(k, v)| (k.clone(), value_to_json(v))).collect()),
-    }
-}
+pub use mln_conversion::value_to_json;
 
 /// Ports test/include/mln/test/stub_geometry_tile_feature.hpp.
 pub struct StubGeometryTileFeature {
