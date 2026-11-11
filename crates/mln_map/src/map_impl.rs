@@ -21,7 +21,9 @@ use std::sync::Arc;
 
 use mln_actor::{TaggedScheduler, scheduler};
 use mln_map_types::{CameraOptions, MapDebugOptions, MapMode, TileLodMode};
-use mln_renderer::{ExceptionPtr, RenderMode, RendererFrontend, RendererObserver, UpdateParameters};
+use mln_renderer::{
+    ExceptionPtr, FontStack, GlyphRange, RenderMode, RendererFrontend, RendererObserver, UpdateParameters,
+};
 use mln_storage::FileSource;
 use mln_style::Style;
 use mln_style::observer::{Observer as StyleObserver, SourceObserver};
@@ -457,6 +459,18 @@ impl RendererObserver for MapImpl {
 
     fn on_render_error(&self, error: ExceptionPtr) {
         self.observer.on_render_error(error);
+    }
+
+    fn on_glyphs_loaded(&self, font_stack: &FontStack, range: &GlyphRange) {
+        self.observer.on_glyphs_loaded(font_stack, range);
+    }
+
+    fn on_glyphs_error(&self, font_stack: &FontStack, range: &GlyphRange, error: ExceptionPtr) {
+        self.observer.on_glyphs_error(font_stack, range, error);
+    }
+
+    fn on_glyphs_requested(&self, font_stack: &FontStack, range: &GlyphRange) {
+        self.observer.on_glyphs_requested(font_stack, range);
     }
 }
 

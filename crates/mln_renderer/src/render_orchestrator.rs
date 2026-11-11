@@ -137,7 +137,22 @@ impl crate::text::glyph_manager::GlyphManagerObserver for OrchestratorGlyphObser
             ),
         );
         if let Some(observer) = shared_observer(&self.observer) {
+            observer.on_glyphs_error(font_stack, glyph_range, error.clone());
             observer.on_resource_error(error);
+        }
+    }
+
+    /// `onGlyphsLoaded(fontStack, range)`.
+    fn on_glyphs_loaded(&self, font_stack: &mln_util::font_stack::FontStack, range: &mln_text::glyph::GlyphRange) {
+        if let Some(observer) = shared_observer(&self.observer) {
+            observer.on_glyphs_loaded(font_stack, range);
+        }
+    }
+
+    /// `onGlyphsRequested(fontStack, range)`.
+    fn on_glyphs_requested(&self, font_stack: &mln_util::font_stack::FontStack, range: &mln_text::glyph::GlyphRange) {
+        if let Some(observer) = shared_observer(&self.observer) {
+            observer.on_glyphs_requested(font_stack, range);
         }
     }
 }

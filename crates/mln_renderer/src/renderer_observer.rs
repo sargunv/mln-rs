@@ -1,6 +1,8 @@
 // Ports include/mln/renderer/renderer_observer.hpp
 
+pub use mln_text::glyph::GlyphRange;
 pub use mln_util::exception::ExceptionPtr;
+pub use mln_util::font_stack::FontStack;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u32)]
@@ -14,7 +16,7 @@ pub enum RenderMode {
 /// C++ has four `onDidFinishRenderingFrame` overloads that forward to each
 /// other; the port keeps the one the renderer calls (with the stats).
 // TODO(port): `gfx::RenderingStats` in on_did_finish_rendering_frame,
-// `onRegisterShaders`, shader compile callbacks, glyph and tile callbacks,
+// `onRegisterShaders`, shader compile callbacks, tile callbacks,
 // `SymbolErrorObserver::onSymbolError`.
 pub trait RendererObserver {
     /// Signals that a repaint is required.
@@ -42,6 +44,15 @@ pub trait RendererObserver {
     }
 
     fn on_remove_unused_style_images(&self, _ids: &[String]) {}
+
+    /// A glyph range of a font stack loaded.
+    fn on_glyphs_loaded(&self, _font_stack: &FontStack, _range: &GlyphRange) {}
+
+    /// A glyph range of a font stack failed to load or parse.
+    fn on_glyphs_error(&self, _font_stack: &FontStack, _range: &GlyphRange, _error: ExceptionPtr) {}
+
+    /// A glyph range of a font stack was requested.
+    fn on_glyphs_requested(&self, _font_stack: &FontStack, _range: &GlyphRange) {}
 
     /// Render layer or drawable failed.
     fn on_render_error(&self, _error: ExceptionPtr) {}

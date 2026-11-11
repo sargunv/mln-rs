@@ -25,6 +25,7 @@ use std::sync::{Arc, Mutex};
 use mln_actor::{LocalObject, RunLoop, Timer};
 use mln_headless::{HeadlessFrontend, RenderResult};
 use mln_map::{Map, MapLoadError, MapMode, MapObserver, MapOptions, RenderFrameStatus};
+use mln_renderer::{ExceptionPtr, FontStack, GlyphRange};
 use mln_storage::stub_file_source::{ResponseType, StubFileSource};
 use mln_storage::{AsyncRequest, Callback, ClientOptions, FileSource, Kind, Resource, ResourceOptions, Response};
 use mln_util::image::PremultipliedImage;
@@ -181,7 +182,7 @@ impl<A> CallbackSlot<A> {
 
 /// `StubMapObserver`.
 // TODO(port): onRegisterShaders, onPre/PostCompileShader,
-// onShaderCompileFailed, onGlyphs*, onTileAction callbacks (MapObserver has
+// onShaderCompileFailed, onTileAction callbacks (MapObserver has
 // none of them yet).
 #[derive(Default)]
 pub struct StubMapObserver {
@@ -192,6 +193,9 @@ pub struct StubMapObserver {
     pub did_finish_rendering_frame_callback: CallbackSlot<RenderFrameStatus>,
     pub did_become_idle_callback: CallbackSlot<()>,
     pub on_style_image_missing_callback: CallbackSlot<String>,
+    pub on_glyphs_loaded_callback: CallbackSlot<(FontStack, GlyphRange)>,
+    pub on_glyphs_error_callback: CallbackSlot<(FontStack, GlyphRange, ExceptionPtr)>,
+    pub on_glyphs_requested_callback: CallbackSlot<(FontStack, GlyphRange)>,
 }
 
 impl MapObserver for StubMapObserver {
@@ -215,6 +219,15 @@ impl MapObserver for StubMapObserver {
     }
     fn on_style_image_missing(&self, id: &str) {
         self.on_style_image_missing_callback.call(id.to_owned());
+    }
+    fn on_glyphs_loaded(&self, font_stack: &FontStack, range: &GlyphRange) {
+        self.on_glyphs_loaded_callback.call((font_stack.clone(), *range));
+    }
+    fn on_glyphs_error(&self, font_stack: &FontStack, range: &GlyphRange, error: ExceptionPtr) {
+        self.on_glyphs_error_callback.call((font_stack.clone(), *range, error));
+    }
+    fn on_glyphs_requested(&self, font_stack: &FontStack, range: &GlyphRange) {
+        self.on_glyphs_requested_callback.call((font_stack.clone(), *range));
     }
 }
 

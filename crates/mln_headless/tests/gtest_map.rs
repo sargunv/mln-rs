@@ -46,6 +46,7 @@ use mln_style::sources::tile_source::{UrlOrTileset, VectorSource};
 use mln_style::style_property::Kind as StylePropertyKind;
 use mln_style::{PropertyValue, TransitionOptions};
 use mln_test_server::HttpServer;
+use mln_text::glyph::{GlyphIDType, GlyphRange};
 use mln_util::Color;
 use mln_util::chrono::{Duration, Timestamp};
 use mln_util::geo::{EdgeInsets, LatLng, LatLngBounds, ScreenCoordinate, WrapMode};
@@ -1195,6 +1196,95 @@ fn no_content_tiles() {
                         }"#,
     );
     check_image("test/fixtures/map/nocontent", &test.render().image, 0.0015, 0.1);
+}
+
+// A glyph range that fails to load or doesn't parse reaches the map observer
+// with its font stack and range, beside the ranges that are requested and
+// load.
+#[test]
+fn glyph_range_errors_reach_the_observer() {
+    let test = MapTest::with_mode(1.0, MapMode::Continuous);
+
+    test.file_source.set_response(Kind::Glyphs, |resource| {
+        let mut response = Response::new();
+        if resource.url.contains("/Missing/") {
+            response.error = Some(Box::new(ResponseError::new(Reason::NotFound, "Not found by the test")));
+        } else if resource.url.contains("/Corrupt/") {
+            response.data = Some(Arc::new(b"CORRUPTED".to_vec()));
+        } else {
+            response = file_response("test/fixtures/resources/glyphs.pbf");
+        }
+        Some(response)
+    });
+
+    let symbol_layer = |font: &str| {
+        format!(
+            r#"{{"id": "{font}", "type": "symbol", "source": "point",
+                "layout": {{"text-field": "a", "text-font": ["{font}"]}}}}"#
+        )
+    };
+    test.load_json(&format!(
+        r#"{{
+            "version": 8,
+            "glyphs": "test://glyphs/{{fontstack}}/{{range}}.pbf",
+            "sources": {{
+                "point": {{"type": "geojson", "data": {{"type": "Point", "coordinates": [0, 0]}}}}
+            }},
+            "layers": [{}, {}, {}]
+        }}"#,
+        symbol_layer("Missing"),
+        symbol_layer("Corrupt"),
+        symbol_layer("Good"),
+    ));
+
+    type Reported = Rc<RefCell<Vec<(Vec<String>, GlyphRange)>>>;
+    let requested: Reported = Rc::default();
+    let loaded: Reported = Rc::default();
+    let errors: Rc<RefCell<Vec<(Vec<String>, GlyphRange, String)>>> = Rc::default();
+
+    let r = requested.clone();
+    test.observer.on_glyphs_requested_callback.set(move |(font_stack, range)| r.borrow_mut().push((font_stack, range)));
+    let (l, e, run_loop) = (loaded.clone(), errors.clone(), test.run_loop.clone());
+    let stop_when_settled = move || {
+        if l.borrow().len() == 1 && e.borrow().len() == 2 {
+            run_loop.stop();
+        }
+    };
+    let (l, stop) = (loaded.clone(), stop_when_settled.clone());
+    test.observer.on_glyphs_loaded_callback.set(move |(font_stack, range)| {
+        l.borrow_mut().push((font_stack, range));
+        stop();
+    });
+    // The file source retries a failed request, so a failure can repeat.
+    let (e, stop) = (errors.clone(), stop_when_settled);
+    test.observer.on_glyphs_error_callback.set(move |(font_stack, range, error)| {
+        let error = (font_stack, range, error.to_string());
+        if !e.borrow().contains(&error) {
+            e.borrow_mut().push(error);
+        }
+        stop();
+    });
+
+    run_with_timeout(&test.run_loop, 10);
+
+    let first_range = GlyphRange::new(0, 255, GlyphIDType::FontPBF);
+    let stack = |font: &str| vec![font.to_owned()];
+    let mut requested = requested.take();
+    requested.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        requested,
+        [(stack("Corrupt"), first_range), (stack("Good"), first_range), (stack("Missing"), first_range)]
+    );
+    assert_eq!(loaded.take(), [(stack("Good"), first_range)]);
+    let mut errors = errors.take();
+    errors.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        errors,
+        [
+            (stack("Corrupt"), first_range, "unknown pbf field type exception".to_owned()),
+            (stack("Missing"), first_range, "Not found by the test".to_owned()),
+        ]
+    );
 }
 
 const ISSUE12432_STYLE: &str = r#"{
