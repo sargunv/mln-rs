@@ -284,3 +284,27 @@ fn font_face_unicode_range_with_multibyte_character() {
     assert_eq!(faces.len(), 1);
     assert_eq!(faces[0].ranges, vec![(0, 0xFF)]);
 }
+
+// gtest: StyleParser.FallbackFontFaces
+#[test]
+fn fallback_font_faces() {
+    use mln_text::glyph::GlyphIDType;
+
+    use crate::parser::parse_fallback_font_faces;
+
+    let faces = parse_fallback_font_faces(
+        r#"[{"url": "a.ttf", "unicode-range": ["U+1000-109F", "U+A9E0-A9FF"]}, {"url": "b.ttf"}]"#,
+    )
+    .unwrap();
+    assert_eq!(faces.len(), 2);
+    assert_eq!(faces[0].name, "");
+    assert_eq!(faces[0].url, "a.ttf");
+    assert_eq!(faces[0].ranges, vec![(0x1000, 0x109F), (0xA9E0, 0xA9FF)]);
+    assert_eq!(faces[1].ranges, vec![(0, 0x10FFFF)]);
+    assert_ne!(faces[0].type_, GlyphIDType::FontPBF);
+
+    assert!(parse_fallback_font_faces("{}").is_err());
+    assert!(parse_fallback_font_faces("[1]").is_err());
+    assert!(parse_fallback_font_faces(r#"[{"unicode-range": ["U+0-FF"]}]"#).is_err());
+    assert!(parse_fallback_font_faces(r#"[{"url": "a.ttf", "unicode-range": ["U+XYZ-FF"]}]"#).is_err());
+}

@@ -286,7 +286,7 @@
 "crates/mln_style/src/sources/geojson_source_impl.rs" = 2
 "crates/mln_style/src/sources/mod.rs" = 1
 "crates/mln_style/src/sources/tile_source.rs" = 3
-"crates/mln_style/src/style_impl.rs" = 2
+"crates/mln_style/src/style_impl.rs" = 1
 "crates/mln_style/src/tests/property_expression.rs" = 2
 "crates/mln_style/src/tests/style.rs" = 2
 "crates/mln_style_types/src/position.rs" = 1

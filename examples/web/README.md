@@ -124,6 +124,9 @@ Then open <http://localhost:8000/> in a browser with WebGPU. URL parameters
 
 - `style=<url>` (default: OpenFreeMap Liberty), `lat`, `lon`, `zoom`,
   `bearing`, `pitch`;
+- `fallbackFontFaces=<json>`: font files that every font stack falls back
+  to, in the format of a style's `font-faces` entry without a font name
+  (`[{"url": "...", "unicode-range": ["U+1000-109F"]}]`);
 - `workers=<n>`: Web Workers for the tiles (default: up to 4);
 - `width`, `height`, `ratio`: a fixed canvas size in CSS pixels and pixel
   ratio.

@@ -12,7 +12,8 @@
 // port does the same with `Rc::strong_count`.
 //
 // Font faces (MLN_TEXT_SHAPING_HARFBUZZ): the style's "font-faces" are
-// fetched as font files (`Resource::fontFace`) and shaped with the
+// fetched as font files (`Resource::fontFace`), or read from the bytes a
+// face holds (an app's fallback faces can), and shaped with the
 // `FontFaceEngine` (font_face_engine.rs): mln_text's HBShaper (HarfRust)
 // natively, ready at once. An engine that needs time to get ready (the
 // browser build loads its shaper as a second wasm module) is asked to as soon
@@ -30,8 +31,8 @@ use mln_actor::{AsyncTask, AsyncTaskSender};
 use mln_storage::{AsyncRequest, FileSource, Resource, Response};
 use mln_text::HBShapeAdjust;
 use mln_text::glyph::{
-    FontFaces, Glyph, GlyphDependencies, GlyphID, GlyphIDType, GlyphIDs, GlyphMap, GlyphRange, Glyphs, HBShapeRequests,
-    get_glyph_range,
+    FontData, FontFaces, Glyph, GlyphDependencies, GlyphID, GlyphIDType, GlyphIDs, GlyphMap, GlyphRange, Glyphs,
+    HBShapeRequests, get_glyph_range,
 };
 use mln_text::glyph_pbf::parse_glyph_pbf;
 use mln_text::local_glyph_rasterizer::{DefaultLocalGlyphRasterizer, LocalGlyphRasterizer};
@@ -128,8 +129,8 @@ pub struct GlyphManager {
     /// Whether `engine.prepare` was called.
     engine_prepared: Cell<bool>,
     engine_readiness: Arc<EngineReadiness>,
-    /// Font-face responses that arrived before the engine was ready.
-    deferred_responses: RefCell<Vec<(Response, FontStack, GlyphRange)>>,
+    /// Font files that arrived before the engine was ready.
+    deferred_responses: RefCell<Vec<(FontData, FontStack, GlyphRange)>>,
     /// Parses `deferred_responses` on this thread once the engine is ready.
     deferred_task: RefCell<Option<AsyncTask>>,
     hb_shapers: RefCell<VecMap<FontStack, VecMap<GlyphIDType, Rc<dyn FontFaceShaper>>>>,
@@ -253,6 +254,13 @@ impl GlyphManager {
 
     /// `requestRange(request, fontStack, range, fileSource)`.
     fn request_range(&self, font_stack: &FontStack, range: &GlyphRange, file_source: Option<&Arc<dyn FileSource>>) {
+        if let Some(data) = self.get_font_face_data(range.type_) {
+            // A face that holds its font file needs no request.
+            self.observer.borrow().clone().on_glyphs_requested(font_stack, range);
+            self.process_data(Some(data), font_stack, range);
+            return;
+        }
+
         let resource = if range.type_ == GlyphIDType::FontPBF {
             Resource::glyphs(&self.glyph_url.borrow(), font_stack, (range.first, range.second))
         } else {
@@ -308,11 +316,20 @@ impl GlyphManager {
             return;
         }
 
-        if range.type_ != GlyphIDType::FontPBF
-            && !res.no_content
-            && self.defer_until_engine_ready(res, font_stack, range)
-        {
-            return;
+        let data = (!res.no_content).then(|| FontData::from(res.data.clone().unwrap_or_default()));
+        self.process_data(data, font_stack, range);
+    }
+
+    /// The rest of `processResponse`, for a glyph PBF or font file: `None`
+    /// when the response had no content.
+    fn process_data(&self, data: Option<FontData>, font_stack: &FontStack, range: &GlyphRange) {
+        let observer = self.observer.borrow().clone();
+        if range.type_ != GlyphIDType::FontPBF {
+            if let Some(data) = &data {
+                if self.defer_until_engine_ready(data, font_stack, range) {
+                    return;
+                }
+            }
         }
 
         let mut notifications = Vec::new();
@@ -320,9 +337,9 @@ impl GlyphManager {
             let mut entries = self.entries.borrow_mut();
             let entry = entries.entry(font_stack.clone()).or_default();
 
-            if !res.no_content {
+            if let Some(data) = &data {
+                let data = data.as_bytes();
                 let glyphs: Vec<Glyph> = if range.type_ == GlyphIDType::FontPBF {
-                    let data: &[u8] = res.data.as_deref().map(|d| d.as_slice()).unwrap_or(&[]);
                     match parse_glyph_pbf(range, data) {
                         Ok(glyphs) => glyphs,
                         Err(error) => {
@@ -332,7 +349,6 @@ impl GlyphManager {
                         }
                     }
                 } else {
-                    let data: &[u8] = res.data.as_deref().map(|d| d.as_slice()).unwrap_or(&[]);
                     if self.load_hb_shaper(font_stack, range.type_, data) {
                         vec![Glyph { id: GlyphID::with_type(0, range.type_), ..Glyph::default() }]
                     } else {
@@ -475,15 +491,15 @@ impl GlyphManager {
         }));
     }
 
-    /// Whether `res`, a font file, has to wait for the engine: if so, keeps
+    /// Whether `data`, a font file, has to wait for the engine: if so, keeps
     /// it for `process_deferred_responses`, which runs once the engine
     /// reports back.
-    fn defer_until_engine_ready(&self, res: &Response, font_stack: &FontStack, range: &GlyphRange) -> bool {
+    fn defer_until_engine_ready(&self, data: &FontData, font_stack: &FontStack, range: &GlyphRange) -> bool {
         self.prepare_engine();
         if self.engine_readiness.is_reported() {
             return false;
         }
-        self.deferred_responses.borrow_mut().push((res.clone(), font_stack.clone(), *range));
+        self.deferred_responses.borrow_mut().push((data.clone(), font_stack.clone(), *range));
         let mut task = self.deferred_task.borrow_mut();
         let task = task.get_or_insert_with(|| {
             let weak_self = self.self_weak.clone();
@@ -505,8 +521,8 @@ impl GlyphManager {
     /// Parses the font files that waited for the engine.
     fn process_deferred_responses(&self) {
         let responses = std::mem::take(&mut *self.deferred_responses.borrow_mut());
-        for (res, font_stack, range) in responses {
-            self.process_response(&res, &font_stack, &range);
+        for (data, font_stack, range) in responses {
+            self.process_data(Some(data), &font_stack, &range);
         }
     }
 
@@ -558,6 +574,15 @@ impl GlyphManager {
             }
         }
         String::new()
+    }
+
+    /// The font file that the face of `type_` holds, if it holds one.
+    fn get_font_face_data(&self, type_: GlyphIDType) -> Option<FontData> {
+        if type_ == GlyphIDType::FontPBF {
+            return None;
+        }
+        let faces = self.font_faces.borrow();
+        faces.as_ref()?.iter().find(|face| face.type_ == type_)?.data.clone()
     }
 
     /// The glyph ids a requestor asked for (helper for tests).

@@ -441,10 +441,90 @@ fn format_json_parse_error(error: &serde_json::Error) -> String {
     error.to_string()
 }
 
+/// `parseFontFile(faceName, fontFile, warnings)`: a font file of a font
+/// face, an object with a `url`, and with an optional `unicode-range` that
+/// limits the code points the font draws. Adds a warning for each range it
+/// can't read, and skips the range.
+fn parse_font_file(
+    face_name: &str,
+    font_file: &serde_json::Map<String, serde_json::Value>,
+    warnings: &mut Vec<String>,
+) -> mln_text::glyph::FontFace {
+    let mut font_face = mln_text::glyph::FontFace::new(face_name, "", vec![(0, 0x10FFFF)]);
+
+    if let Some(url) = font_file.get("url").and_then(|u| u.as_str()) {
+        font_face.url = url.to_owned();
+    }
+
+    if let Some(unicode_range) = font_file.get("unicode-range") {
+        font_face.ranges.clear();
+        if let Some(ranges) = unicode_range.as_array() {
+            for range in ranges {
+                let Some(range_string) = range.as_str() else {
+                    continue;
+                };
+                if range_string.len() <= 2 {
+                    continue;
+                }
+                // `substr` works on bytes: a multibyte character may be cut.
+                let range_string = &range_string.as_bytes()[2..];
+                let Some(pos) = range_string.iter().position(|&b| b == b'-') else {
+                    continue;
+                };
+                let (start, end) = (&range_string[..pos], &range_string[pos + 1..]);
+                if start.is_empty() || end.is_empty() {
+                    continue;
+                }
+                // `util::parse<int>(s, 16)`: std::from_chars, the whole
+                // string must be consumed.
+                let parse = |s: &[u8]| std::str::from_utf8(s).ok().and_then(|s| i32::from_str_radix(s, 16).ok());
+                match (parse(start), parse(end)) {
+                    (Some(start), Some(end)) => font_face.ranges.push((start as u32, end as u32)),
+                    _ => warnings
+                        .push(format!("Invalid unicode-range in font-face: {}", String::from_utf8_lossy(range_string))),
+                }
+            }
+        }
+    }
+
+    font_face
+}
+
+/// `parseFallbackFontFaces(json)`: fallback font faces from `json`, an
+/// array of font files in the format of a font face in a style's
+/// `font-faces`, without a font name. C++ throws `std::runtime_error` if
+/// `json` isn't such an array.
+pub fn parse_fallback_font_faces(json: &str) -> Result<mln_text::glyph::FontFaces, ExceptionPtr> {
+    let document: serde_json::Value =
+        serde_json::from_str(json).map_err(|error| RuntimeError::ptr(format_json_parse_error(&error)))?;
+    let Some(files) = document.as_array() else {
+        return Err(RuntimeError::ptr("fallback font faces must be an array"));
+    };
+
+    let mut font_faces = mln_text::glyph::FontFaces::new();
+    for font_file in files {
+        let Some(font_file) = font_file.as_object() else {
+            return Err(RuntimeError::ptr("each fallback font face must be an object"));
+        };
+        let mut warnings = Vec::new();
+        let font_face = parse_font_file("", font_file, &mut warnings);
+        if let Some(warning) = warnings.into_iter().next() {
+            return Err(RuntimeError::ptr(warning));
+        }
+        if font_face.url.is_empty() {
+            return Err(RuntimeError::ptr("each fallback font face must have a url"));
+        }
+        if font_face.ranges.is_empty() {
+            return Err(RuntimeError::ptr("each fallback font face must cover a unicode-range"));
+        }
+        font_faces.push(mln_text::glyph::FontFace::fallback(&font_face.url, font_face.ranges));
+    }
+    Ok(font_faces)
+}
+
 /// The "font-faces" block of `Parser::parse` (MLN_TEXT_SHAPING_HARFBUZZ).
 fn parse_font_faces(faces: &serde_json::Map<String, serde_json::Value>) -> mln_text::glyph::FontFaces {
     use mln_text::glyph::{FontFace, gen_new_glyph_id_type};
-    use mln_util::logging::{Event, Log};
     let mut font_faces = mln_text::glyph::FontFaces::new();
     for (face_name, face_value) in faces {
         if let Some(files) = face_value.as_array() {
@@ -454,50 +534,10 @@ fn parse_font_faces(faces: &serde_json::Map<String, serde_json::Value>) -> mln_t
                 let Some(font_file) = font_file.as_object() else {
                     continue;
                 };
-                let mut font_face = FontFace::new(face_name, "", vec![(0, 0x10FFFF)]);
-
-                // Parse url
-                if let Some(url) = font_file.get("url").and_then(|u| u.as_str()) {
-                    font_face.url = url.to_owned();
-                }
-
-                // Parse unicode-range
-                if let Some(unicode_range) = font_file.get("unicode-range") {
-                    font_face.ranges.clear();
-                    if let Some(ranges) = unicode_range.as_array() {
-                        for range in ranges {
-                            let Some(range_string) = range.as_str() else {
-                                continue;
-                            };
-                            if range_string.len() <= 2 {
-                                continue;
-                            }
-                            // `substr` works on bytes: a multibyte character
-                            // may be cut.
-                            let range_string = &range_string.as_bytes()[2..];
-                            let Some(pos) = range_string.iter().position(|&b| b == b'-') else {
-                                continue;
-                            };
-                            let (start, end) = (&range_string[..pos], &range_string[pos + 1..]);
-                            if start.is_empty() || end.is_empty() {
-                                continue;
-                            }
-                            // `util::parse<int>(s, 16)`: std::from_chars, the
-                            // whole string must be consumed.
-                            let parse =
-                                |s: &[u8]| std::str::from_utf8(s).ok().and_then(|s| i32::from_str_radix(s, 16).ok());
-                            match (parse(start), parse(end)) {
-                                (Some(start), Some(end)) => font_face.ranges.push((start as u32, end as u32)),
-                                _ => Log::warning(
-                                    Event::ParseStyle,
-                                    format!(
-                                        "Invalid unicode-range in font-face: {}",
-                                        String::from_utf8_lossy(range_string)
-                                    ),
-                                ),
-                            }
-                        }
-                    }
+                let mut warnings = Vec::new();
+                let mut font_face = parse_font_file(face_name, font_file, &mut warnings);
+                for warning in warnings {
+                    Log::warning(Event::ParseStyle, warning);
                 }
 
                 // If valid, generate a unique glyph ID type for this font
