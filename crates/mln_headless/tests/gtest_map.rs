@@ -2785,7 +2785,7 @@ fn still_image_after_tile_error() {
     let timeout = Timer::new();
     {
         let run_loop = test.run_loop.clone();
-        timeout.start(Duration::from_secs(5), Duration::zero(), move || run_loop.stop());
+        timeout.start(Duration::from_secs(5), Duration::ZERO, move || run_loop.stop());
     }
     test.run_loop.run();
     let result = result.borrow_mut().take().expect("the still image did not finish");
