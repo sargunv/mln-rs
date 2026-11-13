@@ -31,6 +31,8 @@ use std::time::Duration;
 
 use jni::errors::Error as JniError;
 use jni::objects::{Global, JByteArray, JObject, JString, JThrowable, JValue, JValueOwned};
+use jni::strings::JNIString;
+use jni::vm::{AttachConfig, DEFAULT_LOCAL_FRAME_CAPACITY};
 use jni::{Env, JavaVM, jni_sig, jni_str};
 use mln_util::chrono::rfc1123;
 use parking_lot::Mutex;
@@ -139,10 +141,17 @@ enum Exchange {
 fn transfer(vm: &JavaVM, request: &TransferRequest) -> Result<Transfer, Box<ResourceError>> {
     let mut url = request.resource().url.clone();
     let mut headers = request.headers();
+    // The worker's own name, which the VM would otherwise replace with
+    // "Thread-N" when the thread first attaches.
+    let name = JNIString::from(std::thread::current().name().unwrap_or("HTTPFileSource"));
     for _ in 0..=MAXIMUM_REDIRECTS {
         // A frame of local references for each request of the chain.
         let exchange = vm
-            .attach_current_thread(|env| Ok::<_, JniError>(exchange(env, request, &url, headers)))
+            .attach_current_thread_with_config(
+                || AttachConfig::new().thread_name(&name),
+                Some(DEFAULT_LOCAL_FRAME_CAPACITY),
+                |env| Ok::<_, JniError>(exchange(env, request, &url, headers)),
+            )
             .map_err(|error| Box::new(ResourceError::new(Reason::Other, format!("JNI failed: {error}"))))??;
         match exchange {
             Exchange::Done(transfer) => return Ok(transfer),
@@ -356,15 +365,27 @@ fn close(env: &mut Env<'_>, stream: &JObject<'_>) {
 }
 
 /// Disconnects `connection`, from any thread, which ends a transfer in
-/// flight with an exception.
+/// flight with an exception. A thread that wasn't attached to the VM is
+/// detached again afterwards, and keeps its name.
 fn disconnect(connection: &Global<JObject<'static>>) {
     let Some(vm) = crate::android::java_vm() else { return };
-    let _ = vm.attach_current_thread(|env| -> Result<(), JniError> {
-        if env.call_method(connection, jni_str!("disconnect"), jni_sig!("()V"), &[]).is_err() {
-            env.exception_clear();
-        }
-        Ok(())
-    });
+    let name = std::thread::current().name().map(JNIString::from);
+    let _ = vm.attach_current_thread_with_config(
+        || {
+            let config = AttachConfig::new().scoped(true);
+            match &name {
+                Some(name) => config.thread_name(name),
+                None => config,
+            }
+        },
+        Some(DEFAULT_LOCAL_FRAME_CAPACITY),
+        |env| -> Result<(), JniError> {
+            if env.call_method(connection, jni_str!("disconnect"), jni_sig!("()V"), &[]).is_err() {
+                env.exception_clear();
+            }
+            Ok(())
+        },
+    );
 }
 
 /// The error for a JNI call's failure: the pending Java exception's, which
