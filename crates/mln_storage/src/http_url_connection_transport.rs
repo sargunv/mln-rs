@@ -141,17 +141,9 @@ enum Exchange {
 fn transfer(vm: &JavaVM, request: &TransferRequest) -> Result<Transfer, Box<ResourceError>> {
     let mut url = request.resource().url.clone();
     let mut headers = request.headers();
-    // The worker's own name, which the VM would otherwise replace with
-    // "Thread-N" when the thread first attaches.
-    let name = JNIString::from(std::thread::current().name().unwrap_or("HTTPFileSource"));
     for _ in 0..=MAXIMUM_REDIRECTS {
         // A frame of local references for each request of the chain.
-        let exchange = vm
-            .attach_current_thread_with_config(
-                || AttachConfig::new().thread_name(&name),
-                Some(DEFAULT_LOCAL_FRAME_CAPACITY),
-                |env| Ok::<_, JniError>(exchange(env, request, &url, headers)),
-            )
+        let exchange = attach_named(vm, false, |env| Ok(exchange(env, request, &url, headers)))
             .map_err(|error| Box::new(ResourceError::new(Reason::Other, format!("JNI failed: {error}"))))??;
         match exchange {
             Exchange::Done(transfer) => return Ok(transfer),
@@ -179,7 +171,8 @@ fn exchange(
     }
     let connection = open(env, request, url, headers).map_err(|error| Box::new(failure(env, &error)))?;
     let global = env.new_global_ref(&connection).map_err(|error| Box::new(failure(env, &error)))?;
-    request.set_cancel_handler(move || disconnect(&global));
+    let reference = Connection(Some(global));
+    request.set_cancel_handler(move || disconnect(&reference));
     // A connection that hasn't connected yet ignores `disconnect`.
     if request.is_cancelled() {
         return Err(Box::new(ResourceError::new(Reason::Other, "Cancelled")));
@@ -365,27 +358,65 @@ fn close(env: &mut Env<'_>, stream: &JObject<'_>) {
 }
 
 /// Disconnects `connection`, from any thread, which ends a transfer in
-/// flight with an exception. A thread that wasn't attached to the VM is
-/// detached again afterwards, and keeps its name.
-fn disconnect(connection: &Global<JObject<'static>>) {
-    let Some(vm) = crate::android::java_vm() else { return };
-    let name = std::thread::current().name().map(JNIString::from);
-    let _ = vm.attach_current_thread_with_config(
+/// flight with an exception.
+fn disconnect(connection: &Connection) {
+    let (Some(vm), Some(connection)) = (crate::android::java_vm(), &connection.0) else { return };
+    let _ = attach_named(vm, true, |env| {
+        if env.call_method(connection, jni_str!("disconnect"), jni_sig!("()V"), &[]).is_err() {
+            env.exception_clear();
+        }
+        Ok(())
+    });
+}
+
+/// A connection's global reference, which a cancel handler owns, and which
+/// drops on whichever thread drops the handler. It drops inside
+/// [`attach_named`]: jni's own drop attaches the thread without a name.
+struct Connection(Option<Global<JObject<'static>>>);
+
+impl Drop for Connection {
+    fn drop(&mut self) {
+        let (Some(vm), Some(global)) = (crate::android::java_vm(), self.0.take()) else { return };
+        let _ = attach_named(vm, true, |_| {
+            drop(global);
+            Ok(())
+        });
+    }
+}
+
+/// Runs `callback` with the current thread attached to `vm` under the
+/// thread's own name, permanently or for the call alone (`scoped`, which
+/// detaches a thread that wasn't attached). The VM names a thread that
+/// attaches without a name "Thread-N", for the system too, and the name
+/// stays after the thread detaches.
+fn attach_named<T>(
+    vm: &JavaVM,
+    scoped: bool,
+    callback: impl FnOnce(&mut Env<'_>) -> Result<T, JniError>,
+) -> Result<T, JniError> {
+    let name = thread_name();
+    vm.attach_current_thread_with_config(
         || {
-            let config = AttachConfig::new().scoped(true);
+            let config = AttachConfig::new().scoped(scoped);
             match &name {
                 Some(name) => config.thread_name(name),
                 None => config,
             }
         },
         Some(DEFAULT_LOCAL_FRAME_CAPACITY),
-        |env| -> Result<(), JniError> {
-            if env.call_method(connection, jni_str!("disconnect"), jni_sig!("()V"), &[]).is_err() {
-                env.exception_clear();
-            }
-            Ok(())
-        },
-    );
+        callback,
+    )
+}
+
+/// The current thread's name: Rust's, or else the system's, which a thread
+/// that Rust didn't name has from whoever started it.
+fn thread_name() -> Option<JNIString> {
+    match std::thread::current().name() {
+        Some(name) => Some(JNIString::from(name)),
+        None => std::fs::read_to_string("/proc/thread-self/comm")
+            .ok()
+            .map(|name| JNIString::from(name.trim_end_matches('\n'))),
+    }
 }
 
 /// The error for a JNI call's failure: the pending Java exception's, which
